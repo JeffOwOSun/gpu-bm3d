@@ -22,8 +22,11 @@ The serial code to optimize: OpenCV
 The parallel baseline: [GitHub](https://github.com/DawyD/bm3d-gpu)
 
 # Goals and Deliverables
+
 ## What we plan to achieve
+
 **The Code** Our primary goal is to come up with an efficient bm3d implementation that rivals and even outperforms the exisiting open source implemtation. We aim to do real-time denoising with the algorithm. We will show pre-processed outputs and compare with inputs at poster session. 
+
 **The Analysis** We'll also produce a detailed performance analysis with timing instructions and perf to pin-point the bottlenecks and compare our algorithm with the open source implementation.  Charts and graphs of speedups, scalability, latency, effectiveness and bottlenecks of each system will be included, as well as our thoughts and reasoning. 
 
 We will answer the following key questions in our analysis
@@ -33,7 +36,9 @@ We will answer the following key questions in our analysis
 3. Can we borrow in our implementation some good ideas in the open source implementation?
 
 ## What we hope to achieve
+
 **V-BM3D** V-BM3D is BM3D's little brother that can handle videos. If time allowed, we will further extend our gpu acceleration to [v-bm3d](https://github.com/HomeOfVapourSynthEvolution/VapourSynth-BM3D) algorithm that can handle temporal-spatial inputs (i.e. Videos). Our ultimate goal is come up with an efficient algorithm suitable for real-time application.
+
 **Realtime Application** If we were able to achieve real-time application, a live demo is also possible. We'll build a lightweight backend that receives the streams of videos taken by our phones and returns a stream of processed video. We'll also need a simple webpage to handle the showcase.
 
 ## The backup
