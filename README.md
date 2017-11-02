@@ -7,9 +7,14 @@ GPU-BM3D
 We are going to use CUDA to parallelize OpenCV's implementation of bm3d algorithm, and analyze our implementation against an open source incarnation available on [GitHub](https://github.com/DawyD/bm3d-gpu). We may further extend our effort to video denoising and realtime application.
 
 # Background
-Dabov et.al [1] proposed in 2007 a novel method for image denoising based on collaborative filtering in transform domain. This algorithm is called block matching and 3D filtering (BM3D) and comprises three major steps. First, a set of similar 2D image fragments (i.e. blocks) is grouped into 3D data arrays that are referred to as groups. This step is referred to as block matching. Second, a 3D transform is applied to the groups, resulting in a sparse representation, that is filtered in the transform domain, and after inversion of the transform, produces the noise-free predicted blocks. This step is referred to as collaborative filtering. Finally, the predicted noise-free blocks are returned to their original positions to form the recovered image. BM3D relies on the effectiveness of the block matching and collaborative filtering to produce good denoising results. 
 
-The BM3D algorithm is comprised of two "runs" of the aforementioned steps. First, the noisy image is processed using the block matching, collaborative filtering and aggregation, using hard thresholding in the shrinkage of the transform coefficients. This produces a basic estimate for the original noise free image. Then, using this basic estimate as input, block matching is applied, being more accurate because the noise is already significantly attenuated. The same groups formed in this basic estimate are formed in the original image. Then, the collaborative filtering and aggregation is applied, but wiener filtering is used instead of hard thresholding for the shrinkage. The wiener filter assumes that the basic estimate energy spectrum is the true energy spectrum of the image, and allows for a more efficient filtering than hard thresholding, improving the final image quality.
+The block matching and 3D filtering (BM3D) algorithm is a novel method for image denoising based on collaborative filtering in transform domain. Since first proposed in 2007, BM3D has been the state-of-the-art until today. The algorithm consists of three stages:
+
+1. **Block Matching** A set of similar patches of the 2D image is grouped into a 3D data array which we call group.
+2. **Collaborative Filtering** A 3D transform is applied to the group to produce a sparse representation in transform domain, and filtered. After that, an inverse transformation is carried out to cast the filtered data back into image domain, which is a 3D array again, but noise-free
+3. **Reconstruct the Image** The groups are redistributed into their original positions.
+
+The algorithm runs the aforementioned 3-step procedure twice. In the first run, the noisy image is processed with hard thresholding in the sparse transform to produce an original noise-free image. Then with this image as input, the same procedure is carried out with wiener filter instead of hard thresholding. The latter makes the assumption that energy spectrum of the first output is correct, and is more efficient than hard-thresholding.
 
 # The Challenge
 Since the BM3D algorithm is split into 3 steps. Each step depends on the result from the last step so identifying the parallel options can be difficult. To achieve good computation performance, we also may consider relax the algorithm a little bit to test the quality. There will be a quality and computation performance trade off by choosing different hyper parameters. Also copying image data back and forth between cpu and gpu is very expensive, so a clean and efficient implementation to hide memory latency is needed to achieve realtime performance. We hope to apply what we learnt from 15-618 to these state-of-art algorithms to improve our abilities to break down problems and parallel computations to achieve good performance. This will also horn our skills on writing efficient GPU code
@@ -25,9 +30,23 @@ The parallel baseline: [GitHub](https://github.com/DawyD/bm3d-gpu)
 
 ## What we plan to achieve
 
-**The Code** Our primary goal is to come up with an efficient bm3d implementation that rivals and even outperforms the exisiting open source implemtation. We aim to do real-time denoising with the algorithm. We will show pre-processed outputs and compare with inputs at poster session. 
+### The Code 
 
-**The Analysis** We'll also produce a detailed performance analysis with timing instructions and perf to pin-point the bottlenecks and compare our algorithm with the open source implementation.  Charts and graphs of speedups, scalability, latency, effectiveness and bottlenecks of each system will be included, as well as our thoughts and reasoning. 
+Our primary goal is to come up with an efficient bm3d implementation that rivals and even outperforms the exisiting open source implemtation. 
+
+#### First version 
+
+In order to achieve this we will profile the pre-existing OpenCV implementation to find out the most computationally expensive part. We'll then devise a parallel work distribution scheme by analyzing the dependencies. If necessary, approximations of the original algorithm may be taken without affecting the overall performance. The first version of GPU implementation will mainly focus on correctness. 
+
+#### Second version
+
+After we verify our implementation, we will analyze the bottlenecks and further optimize the performance. We'll try to improve over first version by removing duplicate calculations, reducing cache misses and lowering artifactual communications. We aim to apply our algorithm to real-time scenario if possible.
+
+#### Demostration
+We will show pre-processed outputs and compare with inputs at poster session. If time allowed, a live demo will also be implemented.
+
+### The Analysis
+We'll also produce a detailed performance analysis with timing instructions and perf to pin-point the bottlenecks and compare our algorithm with the open source implementation. Charts and graphs of speedups, scalability, latency, effectiveness and bottlenecks of each system will be included, as well as our thoughts and reasoning. 
 
 We will answer the following key questions in our analysis
 
@@ -37,9 +56,12 @@ We will answer the following key questions in our analysis
 
 ## What we hope to achieve
 
-**V-BM3D** V-BM3D is BM3D's little brother that can handle videos. If time allowed, we will further extend our gpu acceleration to [v-bm3d](https://github.com/HomeOfVapourSynthEvolution/VapourSynth-BM3D) algorithm that can handle temporal-spatial inputs (i.e. Videos). Our ultimate goal is come up with an efficient algorithm suitable for real-time application.
+### V-BM3D
 
-**Realtime Application** If we were able to achieve real-time application, a live demo is also possible. We'll build a lightweight backend that receives the streams of videos taken by our phones and returns a stream of processed video. We'll also need a simple webpage to handle the showcase.
+V-BM3D is BM3D's little brother that can handle videos. If time allowed, we will further extend our gpu acceleration to [v-bm3d](https://github.com/HomeOfVapourSynthEvolution/VapourSynth-BM3D) algorithm that can handle temporal-spatial inputs (i.e. Videos). Our ultimate goal is come up with an efficient algorithm suitable for real-time application.
+
+### Realtime Application
+If we were able to achieve real-time application, a live demo is also possible. We'll build a lightweight backend that receives the streams of videos taken by our phones and returns a stream of processed video. We'll also need a simple webpage to handle the showcase.
 
 ## The backup
 Had things gone wrong, we would still be able to produce a detailed analysis comparing OpenCV's serial implementation with the open source GPU implementation. We will cover charts and graphs of speedups, scalability, latency, effectiveness and bottlenecks of each system, and provide our thoughts and reasoning as compensation. 
@@ -50,4 +72,8 @@ We choose to implement our effort in C++/Linux. For one thing, both OpenCV and o
 The algorithm can be parallelized because for each 3D block it aggregates for the image, the calculation is independent beyond blocks. We choose GPU as our platform because the task is computationally intense.
 
 # Schedule
-TODO
+
+- Week 0: Run and understand the implementation of OpenCV BM3D algorithm. Profile the OpenCV implementation to find out possible optimizable portions
+- Week 1 & 2: Analyze the algorithm to find out suitable work distribution schemes. Complete a workable GPU accelerated implementation.
+- Week 3 & 4: Profile the implementation to find out bottlenecks. Optimize memory access and reduce extraneous communication.
+- Week 5: Analyze performance with open source implementation and write reports.
