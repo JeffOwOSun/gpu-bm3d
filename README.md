@@ -1,7 +1,8 @@
 GPU-BM3D
+
 *by Tianxiong Wang and Yushi Sun*
 
-[io.jowos.moe/gpu-bm3d](io.jowos.moe/gpu-bm3d)
+URL: [io.jowos.moe/gpu-bm3d](io.jowos.moe/gpu-bm3d)
 
 # Summary
 We are going to use CUDA to parallelize OpenCV's implementation of bm3d algorithm, and analyze our implementation against an open source incarnation available on [GitHub](https://github.com/DawyD/bm3d-gpu). We may further extend our effort to video denoising and realtime application.
@@ -22,10 +23,15 @@ The algorithm runs the aforementioned 3-step procedure twice. In the first run, 
 Since the BM3D algorithm is split into 3 steps. Each step depends on the result from the last step so identifying the parallel options can be difficult. To achieve good computation performance, we also may consider relax the algorithm a little bit to test the quality. There will be a quality and computation performance trade off by choosing different hyper parameters. Also copying image data back and forth between cpu and gpu is very expensive, so a clean and efficient implementation to hide memory latency is needed to achieve realtime performance. We hope to apply what we learnt from 15-618 to these state-of-art algorithms to improve our abilities to break down problems and parallel computations to achieve good performance. This will also horn our skills on writing efficient GPU code
 
 # Resources
+
 ## Hardware
+
 GTX1080 in the GHC machines.
+
 ## Software
+
 The serial code to optimize: OpenCV
+
 The parallel baseline: [GitHub](https://github.com/DawyD/bm3d-gpu)
 
 # Goals and Deliverables
@@ -71,7 +77,7 @@ Had things gone wrong, we would still be able to produce a detailed analysis com
 # Platform Choice
 We choose to implement our effort in C++/Linux. For one thing, both OpenCV and our baseline readily compile in Linux. For another, GHC machines come with pre-installed environment so we can simply kick start it. Also, since we have already gained experience with CUDA in C++, we should have a better time implementing our code.
 
-The algorithm can be parallelized because for each 3D block it aggregates for the image, the calculation is independent beyond blocks. We choose GPU as our platform because the task is computationally intense.
+The algorithm can be parallelized because for each 3D block it aggregates for the image, the calculation is independent beyond blocks. We choose GPU as our platform because the task is computationally intense and thus the copy/paste of the resource can be compensated.
 
 # Schedule
 
