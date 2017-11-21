@@ -38,13 +38,13 @@ The parallel baseline: [GitHub](https://github.com/DawyD/bm3d-gpu)
 
 ## What we plan to achieve
 
-### The Code 
+### The Code
 
-Our primary goal is to come up with an efficient bm3d implementation that rivals and even outperforms the exisiting open source implemtation. 
+Our primary goal is to come up with an efficient bm3d implementation that rivals and even outperforms the exisiting open source implemtation.
 
-#### First version 
+#### First version
 
-In order to achieve this we will profile the pre-existing OpenCV implementation to find out the most computationally expensive part. We'll then devise a parallel work distribution scheme by analyzing the dependencies. If necessary, approximations of the original algorithm may be taken without affecting the overall performance. The first version of GPU implementation will mainly focus on correctness. 
+In order to achieve this we will profile the pre-existing OpenCV implementation to find out the most computationally expensive part. We'll then devise a parallel work distribution scheme by analyzing the dependencies. If necessary, approximations of the original algorithm may be taken without affecting the overall performance. The first version of GPU implementation will mainly focus on correctness.
 
 #### Second version
 
@@ -54,7 +54,7 @@ After we verify our implementation, we will analyze the bottlenecks and further 
 We will show pre-processed outputs and compare with inputs at poster session. If time allowed, a live demo will also be implemented.
 
 ### The Analysis
-We'll also produce a detailed performance analysis with timing instructions and perf to pin-point the bottlenecks and compare our algorithm with the open source implementation. Charts and graphs of speedups, scalability, latency, effectiveness and bottlenecks of each system will be included, as well as our thoughts and reasoning. 
+We'll also produce a detailed performance analysis with timing instructions and perf to pin-point the bottlenecks and compare our algorithm with the open source implementation. Charts and graphs of speedups, scalability, latency, effectiveness and bottlenecks of each system will be included, as well as our thoughts and reasoning.
 
 We will answer the following key questions in our analysis
 
@@ -72,7 +72,7 @@ V-BM3D is BM3D's little brother that can handle videos. If time allowed, we will
 If we were able to achieve real-time application, a live demo is also possible. We'll build a lightweight backend that receives the streams of videos taken by our phones and returns a stream of processed video. We'll also need a simple webpage to handle the showcase.
 
 ## The backup
-Had things gone wrong, we would still be able to produce a detailed analysis comparing OpenCV's serial implementation with the open source GPU implementation. We will cover charts and graphs of speedups, scalability, latency, effectiveness and bottlenecks of each system, and provide our thoughts and reasoning as compensation. 
+Had things gone wrong, we would still be able to produce a detailed analysis comparing OpenCV's serial implementation with the open source GPU implementation. We will cover charts and graphs of speedups, scalability, latency, effectiveness and bottlenecks of each system, and provide our thoughts and reasoning as compensation.
 
 # Platform Choice
 We choose to implement our effort in C++/Linux. For one thing, both OpenCV and our baseline readily compile in Linux. For another, GHC machines come with pre-installed environment so we can simply kick start it. Also, since we have already gained experience with CUDA in C++, we should have a better time implementing our code.
@@ -87,3 +87,28 @@ The algorithm can be parallelized because for each 3D block it aggregates for th
 - Week 3: Complete a workable GPU accelerated implementation.
 - Week 4: Profile the implementation to find out bottlenecks. Optimize memory access and reduce extraneous communication.~~
 - Week 5: Analyze performance with open source implementation and write reports.
+
+
+
+
+# Checkpoint
+
+## Summary
+In the past two weeks, we were mainly reading the reference paper and understanding the BM3D algorithm. The algorithm has two dependent steps. Each step will go through a series of sub-steps: block matching, 2D transform, 1D transform with thresholding, 2D inverse transfrom then get back the estimate for original image. We profiled the openCV serial implementation on our local machine and find out the first step takes up 65% total computation time. The most time consuming part of the steps are block matching and thresholding. We also profiled our reference GPU implementation, similar observations were found. After analyzing the implementation, we think we can improve the existing one by storing precomputation and better block-thread mapping. We have not finished our own implementation of the algorithm using CUDA, but we are clear about the path.
+
+## Goals and Deliverables
+We think our initial primary goals can be achieved by producing a faster GPU implementation of BM3D algorithm. We will present the speed up between our approach vs reference implementation and also Opencv implementation on CPU. Although we are a bit behind of our initial schedule, we are clear about the path towards our goal. The realtime image processing is possible after our initial investigation. However, our time for doing V-BM3D is very limited.
+
+## Concerns
+One of the most intensive operation for this algorithm is 2D transform fourier transform, discrete cosine transform or Haar wave tranform
+
+
+
+
+
+
+
+
+
+
+
