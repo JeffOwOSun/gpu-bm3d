@@ -89,8 +89,6 @@ The algorithm can be parallelized because for each 3D block it aggregates for th
 - Week 5: Analyze performance with open source implementation and write reports.
 
 
-
-
 # Checkpoint
 
 ## Summary
@@ -104,8 +102,14 @@ One of the most intensive operation for this algorithm is 2D transform such as f
 
 Since GHC machine doesn't have opencv package and the version of opencv on latedays is very old which can not satisfy our needs, we will have to run opencv serial implementation on our local machine. The execution time may not be comparable with the one running on GHC machine.
 
+## Schedule
 
-
+- Week 0: Run and understand the implementation of OpenCV BM3D algorithm. Profile the OpenCV implementation to find out possible optimizable portions **DONE**
+- Week 1 & 2: Analyze the algorithm to find out suitable work distribution schemes. **DONE** Complete a workable GPU accelerated implementation. **UNDONE**
+- ~~Week 3 & 4: Profile the implementation to find out bottlenecks. Optimize memory access and reduce extraneous communication.~~
+- Week 3: Complete a workable GPU accelerated implementation.
+- Week 4: Profile the implementation to find out bottlenecks. Optimize memory access and reduce extraneous communication.~~
+- Week 5: Analyze performance with open source implementation and write reports.
 
 
 
