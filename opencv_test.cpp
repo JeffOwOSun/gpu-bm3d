@@ -22,12 +22,7 @@ std::string get_working_path()
 
 int main( int argc, char** argv )
 {
-    if( argc != 2)
-    {
-     cout <<" Usage: display_image ImageToLoadAndDisplay" << endl;
-     return -1;
-    }
-
+    setNumThreads(0);
     string folder = get_working_path();
     string original = folder + "/BM3D_images/Noisy/lena_20.png";
     string expect = folder + "/BM3D_images/Original/lena.png";
@@ -42,7 +37,7 @@ int main( int argc, char** argv )
         return -1;
     }
     auto start = std::chrono::high_resolution_clock::now();
-    cv::xphoto::bm3dDenoising(image, result, 10, 4, 16, 2500, 400, 8, 1, 0.0f, cv::NORM_L2, cv::xphoto::BM3D_STEPALL);
+    cv::xphoto::bm3dDenoising(image, result, 10, 4, 16, 2500, 400, 8, 1, 0.0f, cv::NORM_L2, cv::xphoto::BM3D_STEP1);
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = finish - start;
     std::cout << "Elapsed time: " << elapsed.count() << " s\n";

@@ -17,9 +17,13 @@
 ## Implementation details
 0. Is the two steps completely dependent on each other? And how to map the computation to threads and blocks.
 1. Divide the image into blocks and precompute the transformation of the blocks
-2. Which transformation
+2. Which transformation (DCT/HAAR)
 3. How to search similar blocks, over all the images or in a restricted neighbors
 4. Each group only contains the block indices, we can allocate additional buffers for precomputed 2D tranformations, basic estimates.
 5. Deal with border effects.
 6. Color image.
+
+## Problems:
+1. The initialization takes fair amount of time, cufft plan takes lots of time
+2. how to do DCT or haar
 
