@@ -81,7 +81,9 @@ The algorithm can be parallelized because for each 3D block it aggregates for th
 
 # Schedule
 
-- Week 0: Run and understand the implementation of OpenCV BM3D algorithm. Profile the OpenCV implementation to find out possible optimizable portions
-- Week 1 & 2: Analyze the algorithm to find out suitable work distribution schemes. Complete a workable GPU accelerated implementation.
-- Week 3 & 4: Profile the implementation to find out bottlenecks. Optimize memory access and reduce extraneous communication.
+- Week 0: Run and understand the implementation of OpenCV BM3D algorithm. Profile the OpenCV implementation to find out possible optimizable portions **DONE**
+- Week 1 & 2: Analyze the algorithm to find out suitable work distribution schemes. **DONE** Complete a workable GPU accelerated implementation. **UNDONE**
+- ~~Week 3 & 4: Profile the implementation to find out bottlenecks. Optimize memory access and reduce extraneous communication.~~
+- Week 3: Complete a workable GPU accelerated implementation.
+- Week 4: Profile the implementation to find out bottlenecks. Optimize memory access and reduce extraneous communication.~~
 - Week 5: Analyze performance with open source implementation and write reports.
