@@ -29,8 +29,6 @@ struct GlobalConstants {
     uchar* image_data;
 };
 
-__constant__ GlobalConstants cu_const_params;
-
 void run_kernel();
 
 #endif
