@@ -28,7 +28,7 @@ struct GlobalConstants {
     uchar* image_data;
 };
 
-extern __constant__ GlobalConstants cu_const_params;
+extern __device__ __constant__ GlobalConstants cu_const_params;
 
 void run_kernel();
 

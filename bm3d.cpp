@@ -1,5 +1,6 @@
 #include "bm3d.h"
 
+__device__ __constant__ GlobalConstants cu_const_params;
 /*
  * Initialize params struct
  */
@@ -81,7 +82,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     params.beta = h_fst_step_params.beta;
     printf("params: %d, %d\n", params.image_width, params.image_height);
 
-    err = cudaMemcpyToSymbol("cu_const_params", &params, sizeof(GlobalConstants));
+    err = cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
 
     printf("%s\n", cudaGetErrorString(err));
 }
