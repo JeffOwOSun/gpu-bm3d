@@ -52,7 +52,7 @@ public:
 
     void set_2nd_step_param();
 
-    void set_device_param();
+    void set_device_param(uchar* src_image);
 
     void copy_image_to_device(uchar *src_image,
                               int width,

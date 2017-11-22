@@ -95,7 +95,9 @@ void Bm3d::copy_image_to_device(uchar *src_image,
 }
 
 void Bm3d::free_device_params() {
-
+    if (d_noisy_image) {
+        cudaFree(d_noisy_image);
+    }
 }
 
 /*
@@ -112,13 +114,12 @@ void Bm3d::denoise(uchar *src_image,
     h_height = height;
     h_channels = channels;
     set_device_param(src_image);
-
-
     // first step
-
+    run_kernel();
     // second step
 
     // copy image from device to host
+    free_device_params();
 }
 
 /*
