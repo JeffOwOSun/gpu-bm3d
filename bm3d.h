@@ -17,6 +17,8 @@
 #define uchar unsigned char
 #endif
 
+extern __constant__ GlobalConstants cu_const_params;
+
 class Bm3d
 {
 private:
