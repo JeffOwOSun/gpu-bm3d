@@ -1,5 +1,6 @@
 #include "bm3d.h"
 
+__constant__ GlobalConstants cu_const_params;
 /*
  * Initialize params struct
  */
