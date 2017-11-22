@@ -1,10 +1,5 @@
 #include "bm3d.h"
-#include "params.h"
-#include "filter.h"
-#include <stdio.h>
-#include <vector>
-#include <cuda.h>
-#include <cuda_runtime.h>
+
 
 /*
  * Initialize params struct

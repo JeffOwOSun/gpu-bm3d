@@ -1,6 +1,12 @@
 #ifndef __BM3D_H__
 #define __BM3D_H__
 
+#include "params.h"
+#include "filter.h"
+#include <stdio.h>
+#include <vector>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 // #ifndef uint
 // #define uint unsigned int
@@ -9,9 +15,6 @@
 #ifndef uchar
 #define uchar unsigned char
 #endif
-
-
-#include "params.h"
 
 /*
  * Read-only variables for all cuda kernels. These variables
