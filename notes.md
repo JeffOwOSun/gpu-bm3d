@@ -22,6 +22,8 @@
 4. Each group only contains the block indices, we can allocate additional buffers for precomputed 2D tranformations, basic estimates.
 5. Deal with border effects.
 6. Color image.
+7. use a heap to maintain the N most similar patches wrt current ref patch
+8. Aggregate: to prevent potential contention due to per pixel atomic add, we could allocate an array for each patch c, each ref patch can write to c's array after atomic adding the cur index.
 
 ## Problems:
 1. The initialization takes fair amount of time, cufft plan takes lots of time
