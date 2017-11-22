@@ -1,5 +1,5 @@
 APPNAME=bm3d
-OBJS=denoise.o bm3d.o filter.o
+OBJS=filter.o bm3d.o denoise.o
 LIBS=X11 jpeg png z cufft cudart
 LDLIBS=$(addprefix -l,$(LIBS))
 CXX=g++ -w -m64 -std=c++11
@@ -19,10 +19,10 @@ $(APPNAME): $(OBJS)
 	$(NVCC) $(NVCCFLAGS) $(LDFLAGS) $(LDLIBS) $(OBJS) -I /opt/X11/include -L /opt/X11/lib -o $@
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(addprefix -I,$(INCLUDE)) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(addprefix -I,$(INCLUDE)) -c $< -o $@
 
 %.o: %.cu
-	$(NVCC) $(NVCCFLAGS) $(addprefix -I,$(INCLUDE)) -c $< -o $@
+	$(NVCC) $(NVCCFLAGS) $(LDFLAGS) $(addprefix -I,$(INCLUDE)) -c $< -o $@
 
 clean:
 	rm *.o
