@@ -13,10 +13,51 @@
 
 #include "params.h"
 
+/*
+ * Read-only variables for all cuda kernels. These variables
+ * will be stored in the "constant" memory on GPU for fast read.
+ */
+struct GlobalConstants {
+
+    unsigned int searching_window_size;
+    unsigned int patch_size;
+    unsigned int max_group_size;
+    unsigned int distance_threshold_1;
+    unsigned int distance_threshold_2;
+    unsigned int stripe;
+    float sigma;
+    float lambda_3d;
+    float beta;
+
+    int image_channels;
+    int image_width;
+    int image_height;
+    float* image_data;
+};
+
+
+
 class Bm3d
 {
 private:
     // image
+    int h_width;
+    int h_height;
+    int h_channels;
+    uchar* d_noisy_image;               // noisy image
+    uchar* d_denoised_image;            // save denoised image
+
+    //Auxiliary arrays
+    uint* d_stacks;                     //Addresses of similar patches to each reference patch of a batch
+    std::vector<float*> d_numerator;    //Numerator used for aggregation
+    std::vector<float*> d_denominator;  //Denminator used for aggregation
+    uint* d_num_patches_in_stack;       //Number of similar patches for each referenca patch of a batch that are stored in d_stacks
+    // cuComplex* d_transformed_stacks;    //3D groups of a batch
+    float* d_weight;                   //Weights for aggregation
+    float* d_wien_coef;             //Only for two step denoising, contains wiener coefficients
+    float* d_kaiser_window;         //Kaiser window used for aggregation
+
+
 
     // model parameter
     Params h_fst_step_params;
