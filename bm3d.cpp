@@ -45,7 +45,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     printf("---------------------------------------------------------\n");
     printf("Initializing CUDA for CudaRenderer\n");
     printf("Found %d CUDA devices\n", deviceCount);
-
+    std::string name;
     for (int i=0; i<deviceCount; i++) {
         cudaDeviceProp deviceProps;
         cudaGetDeviceProperties(&deviceProps, i);

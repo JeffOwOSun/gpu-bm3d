@@ -3,6 +3,7 @@
 
 #include "params.h"
 #include "filter.h"
+#include <string>
 #include <stdio.h>
 #include <vector>
 #include <cuda.h>

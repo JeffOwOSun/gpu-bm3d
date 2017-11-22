@@ -3,6 +3,10 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+#ifndef uchar
+#define uchar unsigned char
+#endif
+
 /*
  * Read-only variables for all cuda kernels. These variables
  * will be stored in the "constant" memory on GPU for fast read.
@@ -22,7 +26,7 @@ struct GlobalConstants {
     int image_channels;
     int image_width;
     int image_height;
-    float* image_data;
+    uchar* image_data;
 };
 
 __constant__ GlobalConstants cu_const_params;
