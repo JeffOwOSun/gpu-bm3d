@@ -40,7 +40,8 @@ void Bm3d::set_2nd_step_param() {
  */
 void Bm3d::set_device_param(uchar* src_image) {
     int deviceCount = 0;
-    cudaError_t err = cudaGetDeviceCount(&deviceCount);
+    cudaError_t err;
+    err = cudaGetDeviceCount(&deviceCount);
     printf("---------------------------------------------------------\n");
     printf("Initializing CUDA for CudaRenderer\n");
     printf("Found %d CUDA devices\n", deviceCount);
@@ -80,7 +81,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     params.beta = h_fst_step_params.beta;
     printf("params: %d, %d\n", params.image_width, params.image_height);
 
-    cudaError_t err = cudaMemcpyToSymbol("cu_const_params", &params, sizeof(GlobalConstants));
+    err = cudaMemcpyToSymbol("cu_const_params", &params, sizeof(GlobalConstants));
 
     printf("%s\n", cudaGetErrorString(err));
 }
