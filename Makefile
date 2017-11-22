@@ -18,10 +18,10 @@ opencv: opencv_test
 $(APPNAME): $(OBJS)
 	$(NVCC) $(NVCCFLAGS) $(LDFLAGS) $(LDLIBS) $(OBJS) -I /opt/X11/include -L /opt/X11/lib -o $@
 
-*.o: *.cpp
+%.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-*.o: *.cu
+%.o: %.cu
 	$(NVCC) $(NVCCFLAGS) -c $< -o $@
 
 clean:
