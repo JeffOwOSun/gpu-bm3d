@@ -1,5 +1,5 @@
 APPNAME=bm3d
-OBJS=filter.o bm3d.o denoise.o
+OBJS=global.o filter.o bm3d.o denoise.o
 LIBS=X11 jpeg png z cufft cudart
 LDLIBS=$(addprefix -l,$(LIBS))
 CXX=g++ -w -m64 -std=c++11
