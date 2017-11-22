@@ -79,7 +79,10 @@ void Bm3d::set_device_param(uchar* src_image) {
     params.lambda_3d = h_fst_step_params.lambda_3d;
     params.beta = h_fst_step_params.beta;
     printf("params: %d, %d\n", params.image_width, params.image_height);
-    cudaMemcpyToSymbol("cu_const_params", &params, sizeof(GlobalConstants));
+
+    cudaError_t err = cudaMemcpyToSymbol("cu_const_params", &params, sizeof(GlobalConstants));
+
+    printf("%s\n", cudaGetErrorString(err));
 }
 
 /*
