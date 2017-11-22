@@ -6,8 +6,6 @@
 #ifndef uchar
 #define uchar unsigned char
 #endif
-
-extern __constant__ GlobalConstants cu_const_params;
 /*
  * Read-only variables for all cuda kernels. These variables
  * will be stored in the "constant" memory on GPU for fast read.
@@ -29,6 +27,8 @@ struct GlobalConstants {
     int image_height;
     uchar* image_data;
 };
+
+extern __constant__ GlobalConstants cu_const_params;
 
 void run_kernel();
 

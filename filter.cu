@@ -1,7 +1,6 @@
 #include "filter.h"
 #include <stdio.h>
 
-__constant__ GlobalConstants cu_const_params;
 
 __global__ void kernel() {
     printf("Here in kernel%s\n");
