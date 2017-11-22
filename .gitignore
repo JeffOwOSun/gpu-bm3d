@@ -2,3 +2,4 @@
 .DS_Store
 opencv_test
 bm3d
+*.o
