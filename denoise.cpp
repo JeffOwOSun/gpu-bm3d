@@ -5,7 +5,7 @@
 #include "bm3d.h"
 #define cimg_display 1
 #define cimg_use_png
-#include "CImg.h"
+#include "Cimg.h"
 #include <getopt.h>
 
 using namespace cimg_library;
