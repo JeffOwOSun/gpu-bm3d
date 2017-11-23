@@ -1,13 +1,33 @@
 #include "bm3d.h"
 
-__device__ __constant__ GlobalConstants cu_const_params;
+/*
+ * Read-only variables for all cuda kernels. These variables
+ * will be stored in the "constant" memory on GPU for fast read.
+ */
+__constant__ GlobalConstants cu_const_params;
+
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Putting all the cuda kernels here
+///////////////////////////////////////////////////////////////////////////////////////
+
+__global__ void kernel() {
+    printf("Here in kernel\n");
+    printf("Image width: %d, height: %d\n", cu_const_params.image_width, cu_const_params.image_height);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Class member functions
+///////////////////////////////////////////////////////////////////////////////////////
+
 /*
  * Initialize params struct
  */
 Bm3d::Bm3d() {
-    int h_width = 0;
-    int h_height = 0;
-    int h_channels = 0;
+    h_width = 0;
+    h_height = 0;
+    h_channels = 0;
     d_noisy_image = NULL;
     d_denoised_image = NULL;
 
@@ -138,4 +158,8 @@ void Bm3d::denoise_fst_step() {
  */
 void Bm3d::denoise_2nd_step() {
 
+}
+
+void Bm3d::run_kernel() {
+    kernel<<<1,1>>>();
 }

@@ -9,9 +9,6 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-// #ifndef uint
-// #define uint unsigned int
-// #endif
 
 #ifndef uchar
 #define uchar unsigned char
@@ -76,6 +73,24 @@ public:
     void denoise_2nd_step();
 
     /* data */
+};
+
+struct GlobalConstants {
+
+    unsigned int searching_window_size;
+    unsigned int patch_size;
+    unsigned int max_group_size;
+    unsigned int distance_threshold_1;
+    unsigned int distance_threshold_2;
+    unsigned int stripe;
+    float sigma;
+    float lambda_3d;
+    float beta;
+
+    int image_channels;
+    int image_width;
+    int image_height;
+    uchar* image_data;
 };
 
 #endif
