@@ -172,13 +172,14 @@ void Bm3d::run_kernel() {
 void Bm3d::test_cufft(uchar* src_image) {
     int size = h_width * h_height;
 
-    cufftHandle plan;
+    cufftHandle plan_fw;
+    cufftHandle plan_bw;
     float *h_data = (float*)malloc( size * sizeof(float));
     for (int i=0;i<size;i++) {
         h_data[i] = (float)(src_image[i]);
     }
     cufftReal *d_in_data;
-    cufftComplex *hostOutputData = (cufftComplex*)malloc( (size / 2 + 1) * sizeof(cufftComplex));
+    cufftReal *hostOutputData = (cufftReal*)malloc( size * sizeof(cufftReal));
 
     cudaMalloc((void**)&d_in_data, sizeof(cufftReal) * size);
     cudaMemcpy(d_in_data, (cufftReal*)h_data, sizeof(cufftReal) * size, cudaMemcpyHostToDevice);
@@ -186,21 +187,32 @@ void Bm3d::test_cufft(uchar* src_image) {
     cufftComplex *data;
     cudaMalloc((void**)&data, sizeof(cufftComplex) * (size/2 + 1));
 
-    if(cufftPlan2d(&plan, h_width, h_height, CUFFT_R2C) != CUFFT_SUCCESS) {
+    if(cufftPlan2d(&plan_fw, h_width, h_height, CUFFT_R2C) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
 
-    if (cufftExecR2C(plan, d_in_data, data) != CUFFT_SUCCESS) {
+    if(cufftPlan2d(&plan_bw, h_width, h_height, CUFFT_C2R) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT Plan error: Plan failed");
+        return;
+    }
+
+    if (cufftExecR2C(plan_fw, d_in_data, data) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
-    cudaMemcpy(hostOutputData, data, (size / 2 + 1) * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+
+    if (cufftExecC2R(plan_bw, data, (cufftReal*)data) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
+
+    cudaMemcpy(hostOutputData, (cufftReal*)data, size * sizeof(cufftReal), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
         return;
     }
-    for (int i=0;i<size/2+1;i++) {
-        printf("%d: %.3f\n", i, sqrt(abspow2(hostOutputData[i]))/(float)(size/2 + 1));
+    for (int i=0;i<size;i++) {
+        printf("%d: (%.3f, %.3f)\n", i, h_data[i], hostOutputData[i] );
     }
 }
