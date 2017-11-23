@@ -4,6 +4,7 @@
 #include "params.h"
 #include <string>
 #include <stdio.h>
+#include <math.h>
 #include <vector>
 #include <cuda.h>
 #include <cuda_runtime.h>

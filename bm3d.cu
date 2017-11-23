@@ -6,10 +6,15 @@
  */
 __constant__ GlobalConstants cu_const_params;
 
+float abspow2(cuComplex & a)
+{
+    return (a.x * a.x) + (a.y * a.y);
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Putting all the cuda kernels here
 ///////////////////////////////////////////////////////////////////////////////////////
+
 
 __global__ void kernel() {
     printf("Here in kernel\n");
@@ -196,6 +201,6 @@ void Bm3d::test_cufft(uchar* src_image) {
         return;
     }
     for (int i=0;i<size/2+1;i++) {
-        printf("%d: (%.3f, %3.f)\n", i, hostOutputData[i].x hostOutputData[i].y);
+        printf("%d: %.3f\n", i, sqrt(abspow2(hostOutputData[i]))/(float)(size/2 + 1));
     }
 }
