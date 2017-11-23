@@ -168,9 +168,9 @@ void Bm3d::test_cufft(uchar* src_image) {
     int size = h_width * h_height;
 
     cufftHandle plan;
-    float *h_in_data = (float*)malloc( size * sizeof(float));
+    float *h_data = (float*)malloc( size * sizeof(float));
     for (int i=0;i<size;i++) {
-        h_in_data[i] = (float)(src_image[i]);
+        h_data[i] = (float)(src_image[i]);
     }
     cufftReal *d_in_data;
     cufftComplex *hostOutputData = (cufftComplex*)malloc( (size / 2 + 1) * sizeof(cufftComplex));
@@ -196,6 +196,6 @@ void Bm3d::test_cufft(uchar* src_image) {
         return;
     }
     for (int i=0;i<size/2+1;i++) {
-        printf("%d: (%.3f)\n", i, h_data[i]);
+        printf("%d: (%.3f, %3.f)\n", i, hostOutputData[i].x hostOutputData[i].y);
     }
 }
