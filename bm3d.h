@@ -74,7 +74,7 @@ public:
 
     void run_kernel();
 
-    void test_cufft(float*);
+    void test_cufft(uchar*);
 
     /* data */
 };

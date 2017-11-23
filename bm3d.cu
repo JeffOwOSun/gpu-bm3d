@@ -139,7 +139,7 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // first step
-    test_cufft((float*)src_image);
+    test_cufft(src_image);
     // second step
 
     // copy image from device to host
@@ -164,9 +164,14 @@ void Bm3d::run_kernel() {
     kernel<<<1,1>>>();
 }
 
-void Bm3d::test_cufft(float* h_data) {
+void Bm3d::test_cufft(uchar* src_image) {
     int size = h_width * h_height;
+
     cufftHandle plan;
+    float *h_in_data = (float*)malloc( size * sizeof(float));
+    for (int i=0;i<size;i++) {
+        h_in_data[i] = (float)(src_image[i]);
+    }
     cufftReal *d_in_data;
     cufftComplex *hostOutputData = (cufftComplex*)malloc( (size / 2 + 1) * sizeof(cufftComplex));
 
@@ -191,6 +196,6 @@ void Bm3d::test_cufft(float* h_data) {
         return;
     }
     for (int i=0;i<size/2+1;i++) {
-        printf("%d: (%.3f, %.3f)\n", i, hostOutputData[i].x, hostOutputData[i].y);
+        printf("%d: (%.3f)\n", i, h_data[i]);
     }
 }
