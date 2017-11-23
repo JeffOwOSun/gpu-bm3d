@@ -139,7 +139,7 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // first step
-    run_kernel();
+    test_cufft((float*)src_image);
     // second step
 
     // copy image from device to host
@@ -162,4 +162,34 @@ void Bm3d::denoise_2nd_step() {
 
 void Bm3d::run_kernel() {
     kernel<<<1,1>>>();
+}
+
+void Bm3d::test_cufft(float* h_data) {
+    int size = h_width * h_height;
+    cufftHandle plan;
+    cufftReal *d_in_data;
+    cufftComplex *hostOutputData = (cufftComplex*)malloc( (size / 2 + 1) * sizeof(cufftComplex));
+
+    cudaMalloc((void**)&d_in_data, sizeof(cufftReal) * size);
+    cudaMemcpy(d_in_data, (cufftReal*)h_data, sizeof(cufftReal) * size, cudaMemcpyHostToDevice);
+
+    cufftComplex *data;
+    cudaMalloc((void**)&data, sizeof(cufftComplex) * (size/2 + 1));
+    cuError = cufftPlan2d(&plan, h_width, h_height, CUFFT_R2C);
+    if(cuError != CUFFT_SUCCESS)
+    {
+        fprintf(stderr, "CUFFT Plan error: Plan failed");
+    }
+    if (cufftExecR2C(plan, d_in_data, data) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
+    cudaMemcpy(hostOutputData, data, ((DATASIZE / 2) + 1) * batch * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+    if (cudaGetLastError() != cudaSuccess) {
+        fprintf(stderr, "Cuda error: Failed results copy\n");
+        return;
+    }
+    for (int i=0;i<size/2+1;i++) {
+        printf("%d: (%.3f, %.3f)\n", i, hostOutputData[i].x, hostOutputData[i].y);
+    }
 }

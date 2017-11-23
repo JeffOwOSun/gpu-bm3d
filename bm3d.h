@@ -71,6 +71,10 @@ public:
 
     void denoise_2nd_step();
 
+    void run_kernel();
+
+    void test_cufft(float*);
+
     /* data */
 };
 
