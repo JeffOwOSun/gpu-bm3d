@@ -234,7 +234,9 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         return;
     }
     exec_time.stop();
-    for (int i=0;i<size;i++) {
-        printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
-    }
+    printf("Init: %f\n", init_time.getSeconds());
+    printf("Exec: %f\n", exec_time.getSeconds());
+    // for (int i=0;i<size;i++) {
+    //     printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
+    // }
 }
