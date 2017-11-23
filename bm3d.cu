@@ -226,10 +226,10 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         return;
     }
 
-    // if (cufftExecC2C(plan, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-    //     return;
-    // }
+    if (cufftExecC2C(plan, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
     complex2real<<<dimGrid, dimBlock>>>(data, d_data, n[0]*n[1]);
     cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
