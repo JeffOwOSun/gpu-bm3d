@@ -21,6 +21,27 @@ __global__ void kernel() {
     printf("Image width: %d, height: %d\n", cu_const_params.image_width, cu_const_params.image_height);
 }
 
+__global__ void real2complex(uchar* h_data, cufftComplex *output) {
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    int j = threadIdx.y + blockIdx.y*blockDim.y;
+    int index = j*cu_const_params.image_width + i;
+
+    if (i<cu_const_params.image_width && j<cu_const_params.image_height) {
+        output[index].x = h_data[index];
+        output[index].y = 0.0f;
+    }
+}
+
+__global__ void complex2real(cufftComplex *data, uchar* output) {
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    int j = threadIdx.y + blockIdx.y*blockDim.y;
+    int index = j*cu_const_params.image_width + i;
+    int size = cu_const_params.image_width*cu_const_params.image_height;
+
+    if (i<cu_const_params.image_width && j<cu_const_params.image_height) {
+        output[index] = data[index].x / (float)(size);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Class member functions
@@ -169,47 +190,46 @@ void Bm3d::run_kernel() {
     kernel<<<1,1>>>();
 }
 
-void Bm3d::test_cufft(uchar* src_image) {
+void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     int size = h_width * h_height;
 
-    cufftHandle plan_fw;
-    cufftHandle plan_bw;
-    float *h_data = (float*)malloc( size * sizeof(float));
-    for (int i=0;i<size;i++) {
-        h_data[i] = (float)(src_image[i]);
-    }
-    cufftReal *hostOutputData = (cufftReal*)malloc( size * sizeof(cufftReal));
+    cufftHandle plan;
+    uchar *h_data;
+    uchar *d_data;
+    cudaMalloc(&d_data, sizeof(uchar) * size);
+
+    cudaMalloc(&h_data, sizeof(uchar) * size);
+    cudaMemcpy(h_data, src_image, sizeof(uchar) * size, cudaMemcpyHostToDevice);
 
     cufftComplex *data;
-    cudaMalloc((void**)&data, sizeof(cufftComplex) * (size/2 + 1));
-    cudaMemcpy((cufftReal*)data, (cufftReal*)h_data, sizeof(cufftReal) * size, cudaMemcpyHostToDevice);
+    cudaMalloc(&data, sizeof(cufftComplex) * size);
 
-    if(cufftPlan2d(&plan_fw, h_width, h_height, CUFFT_R2C) != CUFFT_SUCCESS) {
+    if(cufftPlan2d(&plan, h_width, h_height, CUFFT_C2C) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
 
-    if(cufftPlan2d(&plan_bw, h_width, h_height, CUFFT_C2R) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT Plan error: Plan failed");
-        return;
-    }
+    // get input in shape
+    dim3 dimBlock(16,16);
+    dim3 dimGrid(h_width/16, h_height/16);
+    real2complex<<<dimGrid, dimBlock>>>(h_data, data);
 
-    if (cufftExecR2C(plan_fw, (cufftReal*)data, data) != CUFFT_SUCCESS) {
+    if (cufftExecC2C(plan, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
 
-    if (cufftExecC2R(plan_bw, data, (cufftReal*)data) != CUFFT_SUCCESS) {
+    if (cufftExecC2C(plan, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
-
-    cudaMemcpy(hostOutputData, (cufftReal*)data, size * sizeof(cufftReal), cudaMemcpyDeviceToHost);
+    complex2real<<<dimGrid, dimBlock>>>(data, d_data);
+    cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
         return;
     }
     for (int i=0;i<size;i++) {
-        printf("%d: (%.3f, %.3f)\n", i, h_data[i], hostOutputData[i]/size );
+        printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
     }
 }
