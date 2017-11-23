@@ -206,8 +206,12 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
 
     cufftComplex *data;
     cudaMalloc(&data, sizeof(cufftComplex) * size);
+    int n[2] = {16,16};
 
-    if(cufftPlan2d(&plan, h_width, h_height, CUFFT_C2C) != CUFFT_SUCCESS) {
+    if(cufftPlanMany(&plan, 2, n
+                     NULL, 1, 0,
+                     NULL, 1, 0,
+                     CUFFT_C2C, size/256) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
@@ -236,7 +240,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     exec_time.stop();
     printf("Init: %f\n", init_time.getSeconds());
     printf("Exec: %f\n", exec_time.getSeconds());
-    // for (int i=0;i<size;i++) {
-    //     printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
-    // }
+    for (int i=0;i<size;i++) {
+        printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
+    }
 }
