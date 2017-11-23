@@ -175,11 +175,12 @@ void Bm3d::test_cufft(float* h_data) {
 
     cufftComplex *data;
     cudaMalloc((void**)&data, sizeof(cufftComplex) * (size/2 + 1));
-    cuError = cufftPlan2d(&plan, h_width, h_height, CUFFT_R2C);
-    if(cuError != CUFFT_SUCCESS)
-    {
+
+    if(cufftPlan2d(&plan, h_width, h_height, CUFFT_R2C) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
+        return;
     }
+
     if (cufftExecR2C(plan, d_in_data, data) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
