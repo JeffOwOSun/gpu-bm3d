@@ -7,6 +7,7 @@
 #include <vector>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <cufft.h>
 
 
 #ifndef uchar

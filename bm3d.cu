@@ -184,7 +184,7 @@ void Bm3d::test_cufft(float* h_data) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
-    cudaMemcpy(hostOutputData, data, ((DATASIZE / 2) + 1) * batch * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(hostOutputData, data, (size / 2 + 1) * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
         return;
