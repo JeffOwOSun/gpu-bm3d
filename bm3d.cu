@@ -165,7 +165,7 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // first step
-    test_cufft(src_image);
+    test_cufft(src_image, dst_image);
     // second step
 
     // copy image from device to host
@@ -191,6 +191,9 @@ void Bm3d::run_kernel() {
 }
 
 void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
+    Stopwatch init_time;
+    Stopwatch exec_time;
+    init_time.start();
     int size = h_width * h_height;
 
     cufftHandle plan;
@@ -208,7 +211,8 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-
+    init_time.stop();
+    exec_time.start();
     // get input in shape
     dim3 dimBlock(16,16);
     dim3 dimGrid(h_width/16, h_height/16);
@@ -229,6 +233,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
         return;
     }
+    exec_time.stop();
     for (int i=0;i<size;i++) {
         printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
     }

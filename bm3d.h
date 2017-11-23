@@ -10,6 +10,8 @@
 #include <cuda_runtime.h>
 #include <cufft.h>
 
+#include "stopwatch.hpp"
+
 
 #ifndef uchar
 #define uchar unsigned char
