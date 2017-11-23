@@ -178,14 +178,11 @@ void Bm3d::test_cufft(uchar* src_image) {
     for (int i=0;i<size;i++) {
         h_data[i] = (float)(src_image[i]);
     }
-    cufftReal *d_in_data;
     cufftReal *hostOutputData = (cufftReal*)malloc( size * sizeof(cufftReal));
-
-    cudaMalloc((void**)&d_in_data, sizeof(cufftReal) * size);
-    cudaMemcpy(d_in_data, (cufftReal*)h_data, sizeof(cufftReal) * size, cudaMemcpyHostToDevice);
 
     cufftComplex *data;
     cudaMalloc((void**)&data, sizeof(cufftComplex) * (size/2 + 1));
+    cudaMemcpy((cufftReal*)data, (cufftReal*)h_data, sizeof(cufftReal) * size, cudaMemcpyHostToDevice);
 
     if(cufftPlan2d(&plan_fw, h_width, h_height, CUFFT_R2C) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
@@ -197,7 +194,7 @@ void Bm3d::test_cufft(uchar* src_image) {
         return;
     }
 
-    if (cufftExecR2C(plan_fw, d_in_data, data) != CUFFT_SUCCESS) {
+    if (cufftExecR2C(plan_fw, (cufftReal*)data, data) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
@@ -213,6 +210,6 @@ void Bm3d::test_cufft(uchar* src_image) {
         return;
     }
     for (int i=0;i<size;i++) {
-        printf("%d: (%.3f, %.3f)\n", i, h_data[i], hostOutputData[i] );
+        printf("%d: (%.3f, %.3f)\n", i, h_data[i], hostOutputData[i]/size );
     }
 }
