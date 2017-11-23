@@ -32,11 +32,10 @@ __global__ void real2complex(uchar* h_data, cufftComplex *output) {
     }
 }
 
-__global__ void complex2real(cufftComplex *data, uchar* output) {
+__global__ void complex2real(cufftComplex *data, uchar* output, int size) {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     int j = threadIdx.y + blockIdx.y*blockDim.y;
     int index = j*cu_const_params.image_width + i;
-    int size = cu_const_params.image_width*cu_const_params.image_height;
 
     if (i<cu_const_params.image_width && j<cu_const_params.image_height) {
         output[index] = data[index].x / (float)(size);
@@ -208,7 +207,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     cudaMalloc(&data, sizeof(cufftComplex) * size);
     int n[2] = {16,16};
 
-    if(cufftPlanMany(&plan, 2, n
+    if(cufftPlanMany(&plan, 2, n,
                      NULL, 1, 0,
                      NULL, 1, 0,
                      CUFFT_C2C, size/256) != CUFFT_SUCCESS) {
@@ -227,11 +226,11 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         return;
     }
 
-    if (cufftExecC2C(plan, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-        return;
-    }
-    complex2real<<<dimGrid, dimBlock>>>(data, d_data);
+    // if (cufftExecC2C(plan, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //     return;
+    // }
+    complex2real<<<dimGrid, dimBlock>>>(data, d_data, n[0]*n[1]);
     cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
