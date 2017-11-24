@@ -44,7 +44,7 @@ __global__ void complex2real(cufftComplex *data, uchar* output, int size) {
 
 
 
-__global__ fill_data(uint2 *d_stacks, cufftComplex *data_stack, int size, int patch_size) {
+__global__ void fill_data(uint2 *d_stacks, cufftComplex *data_stack, int size, int patch_size) {
     int b_idx = blockIdx.x;
     int ref_x = d_stacks[b_idx].x;
     int ref_y = d_stacks[b_idx].y;
@@ -178,7 +178,7 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // first step
-    test_cufft(src_image, dst_image);
+    arrange_block(src_image);
     // second step
 
     // copy image from device to host
@@ -267,7 +267,7 @@ void Bm3d::arrange_block(uchar* src_image) {
     // initialize stacked patch indices which is a uint2 indices, each entry is the top
     // left indices of the patch
     int size = 8;
-    int group_size = 2;
+    //int group_size = 2;
     int patch_size = 4;
     uint2 *h_stacks;
     uint2 *d_stacks;
@@ -278,7 +278,7 @@ void Bm3d::arrange_block(uchar* src_image) {
         h_stacks[i].x = i*size;
         h_stacks[i].y = 0;
         for (int j=0;j<patch_size;j++) {
-            for (int k=0;k<patch_size,k++) {
+            for (int k=0;k<patch_size;k++) {
                 printf("Image id: %d, %d\n", k+j*patch_size + i*size*patch_size*patch_size, src_image[idx2(i*size + k, j, h_width)]);
             }
         }

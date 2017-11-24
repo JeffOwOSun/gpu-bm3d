@@ -82,6 +82,8 @@ public:
 
     void test_cufft(uchar*, uchar*);
 
+    void arrange_block(uchar* src_image);
+
     /* data */
 };
 
