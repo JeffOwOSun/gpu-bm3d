@@ -56,8 +56,14 @@ __global__ void hard_filter(cufftComplex *data) {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     int j = threadIdx.y + blockIdx.y*blockDim.y;
     int index = idx2(i, j, cu_const_params.image_width);
+
+    float threshold = cu_const_params.lambda_3d * cu_const_params.lambda_3d *
+                      cu_const_params.sigma * cu_const_params.sigma *
+                      blockIdx.x * blockIdx.y;
     float val = norm2(data[index]);
-    printf("index: %d with norm %f\n", index, val);
+    if (val < threshold) {
+        printf("index: %d with norm %f\n", index, val);
+    }
 }
 
 __global__ void fill_data(uint2 *d_stacks, cufftComplex *data_stack, int size, int patch_size, int group_size) {
@@ -275,7 +281,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     }
 
     //hard filter
-    hard_filter<<<dimGrid, dimBlock>>>();
+    hard_filter<<<dimGrid, dimBlock>>>(data);
 
 
     if (cufftExecC2C(plan1D, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
