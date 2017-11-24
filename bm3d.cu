@@ -279,7 +279,7 @@ void Bm3d::arrange_block(uchar* src_image) {
         h_stacks[i].y = 0;
         for (int j=0;j<patch_size;j++) {
             for (int k=0;k<patch_size;k++) {
-                printf("Image id: %d, %d\n", k+j*patch_size + i*size*patch_size*patch_size, src_image[idx2(i*size + k, j, h_width)]);
+                printf("Image id: %d, %d\n", j*h_width + i*patch_size + k, src_image[idx2(i*size + k, j, h_width)]);
             }
         }
     }
