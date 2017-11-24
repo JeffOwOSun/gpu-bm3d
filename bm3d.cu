@@ -59,7 +59,7 @@ __global__ void hard_filter(cufftComplex *data) {
 
     float threshold = cu_const_params.lambda_3d * cu_const_params.lambda_3d *
                       cu_const_params.sigma * cu_const_params.sigma *
-                      blockIdx.x * blockIdx.y*1000;
+                      blockIdx.x * blockIdx.y*10000;
     float val = norm2(data[index]);
     if (val < threshold) {
         data[index].x = 0.0f;
