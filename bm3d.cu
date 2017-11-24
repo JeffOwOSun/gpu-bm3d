@@ -14,7 +14,9 @@ float abspow2(cuComplex & a)
 ////////////////////////////////////////////////////////////////////////////////////////
 // Putting all the cuda kernels here
 ///////////////////////////////////////////////////////////////////////////////////////
-
+__device__ float norm2(cuComplex & a) {
+    return (a.x * a.x) + (a.y * a.y);
+}
 
 __global__ void kernel() {
     printf("Here in kernel\n");
@@ -48,6 +50,14 @@ __global__ void normalize(cufftComplex *data, int size) {
     int index = idx2(i, j, cu_const_params.image_width);
     data[index].x = data[index].x / (float)(size);
     data[index].y = data[index].y / (float)(size);
+}
+
+__global__ void hard_filter(cufftComplex *data) {
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    int j = threadIdx.y + blockIdx.y*blockDim.y;
+    int index = idx2(i, j, cu_const_params.image_width);
+    float val = norm2(data[index]);
+    printf("index: %d with norm %f\n", index, val);
 }
 
 __global__ void fill_data(uint2 *d_stacks, cufftComplex *data_stack, int size, int patch_size, int group_size) {
@@ -264,11 +274,16 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         return;
     }
 
+    //hard filter
+    hard_filter<<<dimGrid, dimBlock>>>();
+
+
     if (cufftExecC2C(plan1D, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
 
+    // normalize cufft 1d transformation
     normalize<<<dimGrid, dimBlock>>>(data, patch_size*patch_size*group_size);
 
     if (cufftExecC2C(plan, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
@@ -284,9 +299,9 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     exec_time.stop();
     printf("Init: %f\n", init_time.getSeconds());
     printf("Exec: %f\n", exec_time.getSeconds());
-    for (int i=0;i<size;i++) {
-        printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
-    }
+    // for (int i=0;i<size;i++) {
+    //     printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
+    // }
 }
 
 /*
