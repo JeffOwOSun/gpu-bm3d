@@ -42,8 +42,6 @@ __global__ void complex2real(cufftComplex *data, uchar* output, int size) {
     }
 }
 
-
-
 __global__ void fill_data(uint2 *d_stacks, cufftComplex *data_stack, int size, int patch_size, int group_size) {
     for (int i=0;i<group_size;i++) {
         int b_idx = blockIdx.x * group_size + i;
@@ -181,7 +179,8 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // first step
-    arrange_block(src_image);
+    test_cufft(src_image, dst_image);
+    // arrange_block(src_image);
     // second step
 
     // copy image from device to host
@@ -211,6 +210,8 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     Stopwatch exec_time;
     init_time.start();
     int size = h_width * h_height;
+    int patch_size = 8;
+    int group_size = 4;
 
     cufftHandle plan;
     uchar *h_data;
@@ -222,20 +223,20 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
 
     cufftComplex *data;
     cudaMalloc(&data, sizeof(cufftComplex) * size);
-    int n[2] = {16,16};
+    int n[3] = {patch_size,patch_size,group_size};
 
-    if(cufftPlanMany(&plan, 2, n,
+    if(cufftPlanMany(&plan, 3, n,
                      NULL, 1, 0,
                      NULL, 1, 0,
-                     CUFFT_C2C, size/256) != CUFFT_SUCCESS) {
+                     CUFFT_C2C, size/(n[0]*n[1]*n[2])) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
     init_time.stop();
     exec_time.start();
     // get input in shape
-    dim3 dimBlock(16,16);
-    dim3 dimGrid(h_width/16, h_height/16);
+    dim3 dimBlock(patch_size,patch_size);
+    dim3 dimGrid(h_width/patch_size, h_height/patch_size);
     real2complex<<<dimGrid, dimBlock>>>(h_data, data);
 
     if (cufftExecC2C(plan, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS) {
@@ -247,7 +248,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
-    complex2real<<<dimGrid, dimBlock>>>(data, d_data, n[0]*n[1]);
+    complex2real<<<dimGrid, dimBlock>>>(data, d_data, patch_size*patch_size);
     cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
@@ -263,8 +264,9 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
 
 /*
  *  arrange_block - according to the stacked patch indices, fill in the transformed
- *                  data array for 2D DCT.
- *
+ *                  data array for 2D DCT. Input is an array of uint2, every N uint2
+ *                  is a group. This kernel will put each group into an continuous array
+ *                  of cufftComplex num with x component to be the value, y component to be 0.f
  */
 void Bm3d::arrange_block(uchar* src_image) {
     // initialize stacked patch indices which is a uint2 indices, each entry is the top
