@@ -210,10 +210,12 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     Stopwatch exec_time;
     init_time.start();
     int size = h_width * h_height;
-    int patch_size = 8;
+    int patch_size = 16;
     int group_size = 4;
+    int batch = size / (patch_size*patch_size*group_size);
 
     cufftHandle plan;
+    cufftHandle plan1D;
     uchar *h_data;
     uchar *d_data;
     cudaMalloc(&d_data, sizeof(uchar) * size);
@@ -223,20 +225,25 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
 
     cufftComplex *data;
     cudaMalloc(&data, sizeof(cufftComplex) * size);
-    int n[3] = {patch_size,patch_size,group_size};
+    int n[2] = {16,16};
 
-    if(cufftPlanMany(&plan, 3, n,
+    if(cufftPlanMany(&plan, 2, n,
                      NULL, 1, 0,
                      NULL, 1, 0,
-                     CUFFT_C2C, size/(n[0]*n[1]*n[2])) != CUFFT_SUCCESS) {
+                     CUFFT_C2C, size/256) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT Plan error: Plan failed");
+        return;
+    }
+    if(cufftPlan1d(&plan1D, patch_size*patch_size*group_size
+                     CUFFT_C2C, batch) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
     init_time.stop();
     exec_time.start();
     // get input in shape
-    dim3 dimBlock(patch_size,patch_size);
-    dim3 dimGrid(h_width/patch_size, h_height/patch_size);
+    dim3 dimBlock(16,16);
+    dim3 dimGrid(h_width/16, h_height/16);
     real2complex<<<dimGrid, dimBlock>>>(h_data, data);
 
     if (cufftExecC2C(plan, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS) {
@@ -248,7 +255,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
-    complex2real<<<dimGrid, dimBlock>>>(data, d_data, patch_size*patch_size);
+    complex2real<<<dimGrid, dimBlock>>>(data, d_data, n[0]*n[1]);
     cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
