@@ -98,6 +98,6 @@ int main(int argc, char** argv)
              step,
              verbose);
     image2 = image2.get_channel(0);
-    image2.save(output_file);
+    image2.save(output_file.c_str());
     return 0;
 }
