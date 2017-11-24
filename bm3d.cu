@@ -234,7 +234,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-    if(cufftPlan1d(&plan1D, patch_size*patch_size*group_size
+    if(cufftPlan1d(&plan1D, patch_size*patch_size*group_size,
                      CUFFT_C2C, batch) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
@@ -247,6 +247,16 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     real2complex<<<dimGrid, dimBlock>>>(h_data, data);
 
     if (cufftExecC2C(plan, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
+
+    if (cufftExecC2C(plan1D, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
+
+    if (cufftExecC2C(plan1D, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
