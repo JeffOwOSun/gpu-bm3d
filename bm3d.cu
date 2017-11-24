@@ -42,6 +42,14 @@ __global__ void complex2real(cufftComplex *data, uchar* output, int size) {
     }
 }
 
+__global__ void normalize(cufftComplex *data, int size) {
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    int j = threadIdx.y + blockIdx.y*blockDim.y;
+    int index = idx2(i, j, cu_const_params.image_width);
+    data[index].x = data[index].x / (float)(size);
+    data[index].y = data[index].y / (float)(size);
+}
+
 __global__ void fill_data(uint2 *d_stacks, cufftComplex *data_stack, int size, int patch_size, int group_size) {
     for (int i=0;i<group_size;i++) {
         int b_idx = blockIdx.x * group_size + i;
@@ -260,6 +268,8 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
+
+    normalize<<<dimGrid, dimBlock>>>(data, patch_size*patch_size*group_size);
 
     if (cufftExecC2C(plan, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
