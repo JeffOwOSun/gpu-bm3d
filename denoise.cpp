@@ -97,6 +97,7 @@ int main(int argc, char** argv)
              channels,
              step,
              verbose);
-
+    image2 = image2.get_channel(0);
+    image2.save(output_file);
     return 0;
 }

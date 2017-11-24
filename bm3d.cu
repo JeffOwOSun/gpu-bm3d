@@ -62,7 +62,9 @@ __global__ void hard_filter(cufftComplex *data) {
                       blockIdx.x * blockIdx.y;
     float val = norm2(data[index]);
     if (val < threshold) {
-        printf("index: %d with norm %f\n", index, val);
+        data[index].x = 0;
+        data[index].y = 0;
+        // printf("index: %d with norm %f\n", index, val);
     }
 }
 
