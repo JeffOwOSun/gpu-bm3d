@@ -59,11 +59,11 @@ __global__ void hard_filter(cufftComplex *data) {
 
     float threshold = cu_const_params.lambda_3d * cu_const_params.lambda_3d *
                       cu_const_params.sigma * cu_const_params.sigma *
-                      blockIdx.x * blockIdx.y*100;
+                      blockIdx.x * blockIdx.y*1000;
     float val = norm2(data[index]);
     if (val < threshold) {
-        data[index].x = 0;
-        data[index].y = 0;
+        data[index].x = 0.0f;
+        data[index].y = 0.0f;
         // printf("index: %d with norm %f\n", index, val);
     }
 }
@@ -307,9 +307,9 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     exec_time.stop();
     printf("Init: %f\n", init_time.getSeconds());
     printf("Exec: %f\n", exec_time.getSeconds());
-    // for (int i=0;i<size;i++) {
-    //     printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
-    // }
+    for (int i=0;i<size;i++) {
+        printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
+    }
 }
 
 /*
