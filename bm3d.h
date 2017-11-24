@@ -17,6 +17,9 @@
 #define uchar unsigned char
 #endif
 
+#define idx2(x,y,dim_x) ( (x) + ((y)*(dim_x)) )
+#define idx3(x,y,z,dim_x,dim_y) ( (x) + ((y)*(dim_x)) + ((z)*(dim_x)*(dim_y)) )
+
 
 class Bm3d
 {

@@ -42,6 +42,20 @@ __global__ void complex2real(cufftComplex *data, uchar* output, int size) {
     }
 }
 
+
+
+__global__ fill_data(uint2 *d_stacks, cufftComplex *data_stack, int size, int patch_size) {
+    int b_idx = blockIdx.x;
+    int ref_x = d_stacks[b_idx].x;
+    int ref_y = d_stacks[b_idx].y;
+
+    int start_idx = b_idx * patch_size * patch_size;
+    data_stack += start_idx;
+    data_stack[idx2(threadIdx.x, threadIdx.y, patch_size)].x = (float)(cu_const_params.image_data[idx2(ref_x+threadIdx.x, ref_y+threadIdx.y, cu_const_params.image_width)]);
+    data_stack[idx2(threadIdx.x, threadIdx.y, patch_size)].y = 0.0f;
+    printf("idx: %d, %f\n", idx2(threadIdx.x, threadIdx.y, patch_size) + start_idx, data_stack[idx2(threadIdx.x, threadIdx.y, patch_size)].x);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // Class member functions
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -242,4 +256,40 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     for (int i=0;i<size;i++) {
         printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
     }
+}
+
+/*
+ *  arrange_block - according to the stacked patch indices, fill in the transformed
+ *                  data array for 2D DCT.
+ *
+ */
+void Bm3d::arrange_block(uchar* src_image) {
+    // initialize stacked patch indices which is a uint2 indices, each entry is the top
+    // left indices of the patch
+    int size = 8;
+    int group_size = 2;
+    int patch_size = 4;
+    uint2 *h_stacks;
+    uint2 *d_stacks;
+    cufftComplex *data_stack;
+
+    h_stacks = (uint2*)malloc(sizeof(uint2) * size);
+    for (int i=0;i<size;i++) {
+        h_stacks[i].x = i*size;
+        h_stacks[i].y = 0;
+        for (int j=0;j<patch_size;j++) {
+            for (int k=0;k<patch_size,k++) {
+                printf("Image id: %d, %d\n", k+j*patch_size + i*size*patch_size*patch_size, src_image[idx2(i*size + k, j, h_width)]);
+            }
+        }
+    }
+    cudaMalloc(&d_stacks, sizeof(uint2) * size);
+    cudaMemcpy(d_stacks, h_stacks, sizeof(uint2) * size, cudaMemcpyHostToDevice);
+
+    cudaMalloc(&data_stack, sizeof(cufftComplex) * size * patch_size * patch_size);
+
+    dim3 dimBlock(patch_size, patch_size);
+    dim3 dimGrid(size,1);
+    fill_data<<<dimGrid, dimBlock>>>(d_stacks, data_stack, size, patch_size);
+
 }
