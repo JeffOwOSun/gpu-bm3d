@@ -32,6 +32,7 @@ private:
     uchar* d_denoised_image;            // save denoised image
 
     //Auxiliary arrays
+    float* d_transformed_patches        // 3D array of precomputed 2D transformation of all the patches
     uint* d_stacks;                     //Addresses of similar patches to each reference patch of a batch
     std::vector<float*> d_numerator;    //Numerator used for aggregation
     std::vector<float*> d_denominator;  //Denminator used for aggregation
@@ -48,6 +49,8 @@ private:
     Params h_2nd_step_params;
 
     // device parameter
+    cufftHandle plan;
+    cufftHandle plan1D;
 
 public:
     Bm3d();

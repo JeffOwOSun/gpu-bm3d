@@ -44,6 +44,9 @@ __global__ void complex2real(cufftComplex *data, uchar* output, int size) {
     }
 }
 
+/*
+ *  normalize cufft inverse result by dividing number of elements per batch
+ */
 __global__ void normalize(cufftComplex *data, int size) {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     int j = threadIdx.y + blockIdx.y*blockDim.y;
@@ -68,6 +71,9 @@ __global__ void hard_filter(cufftComplex *data) {
     }
 }
 
+/*
+ *  Each block maps to a group, each thread maps to a pixel
+ */
 __global__ void fill_data(uint2 *d_stacks, cufftComplex *data_stack, int size, int patch_size, int group_size) {
     for (int i=0;i<group_size;i++) {
         int b_idx = blockIdx.x * group_size + i;
@@ -127,6 +133,9 @@ void Bm3d::set_2nd_step_param() {
  */
 void Bm3d::set_device_param(uchar* src_image) {
     int deviceCount = 0;
+    int total_patches = (h_width - h_fst_step_params.patch_size + 1) * (h_height - h_fst_step_params.patch_size + 1);
+    int total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
+
     cudaError_t err;
     err = cudaGetDeviceCount(&deviceCount);
     printf("---------------------------------------------------------\n");
@@ -150,6 +159,8 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMalloc(&d_noisy_image, sizeof(uchar) * h_channels * size);
     cudaMemcpy(d_noisy_image, src_image, sizeof(uchar) * h_channels * size, cudaMemcpyHostToDevice);
 
+    cudaMalloc(&d_transformed_patches, sizeof(float) * total_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size);
+
     // Only use the generic params for now
     GlobalConstants params;
     params.image_width = h_width;
@@ -166,11 +177,23 @@ void Bm3d::set_device_param(uchar* src_image) {
     params.sigma = h_fst_step_params.sigma;
     params.lambda_3d = h_fst_step_params.lambda_3d;
     params.beta = h_fst_step_params.beta;
-    printf("params: %d, %d\n", params.image_width, params.image_height);
 
     err = cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
 
-    printf("%s\n", cudaGetErrorString(err));
+    // create cufft transform plan
+    if(cufftPlanMany(&plan, 2, {h_fst_step_params.patch_size, h_fst_step_params.patch_size},
+                     NULL, 1, 0,
+                     NULL, 1, 0,
+                     CUFFT_C2C, total_patches) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT Plan error: Plan failed");
+        return;
+    }
+    if(cufftPlan1d(&plan1D, patch_size*patch_size*group_size,
+                     CUFFT_C2C, total_ref_patches) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT Plan error: Plan failed");
+        return;
+    }
+
 }
 
 /*
@@ -217,18 +240,57 @@ void Bm3d::denoise(uchar *src_image,
  * Perform the first step denoise
  */
 void Bm3d::denoise_fst_step() {
+    //Block matching, each thread maps to a ref patch
 
+    //gather patches, convert addresses to actual data
+
+    //perform 2d dct transform
+
+    // perform 1d transform
+
+    // hard thresholding
+
+    // inverse 1d transform
+
+    // inverse 2d transform
+
+    // aggregate to single image by writing into buffer
 }
 
 /*
  * Perform the second step denoise
  */
 void Bm3d::denoise_2nd_step() {
+    //Block matching estimate image, each thread maps to a ref patch
 
+    //gather patches, convert addresses to actual data
+
+    //gather noisy image patches, convert addresses to actual data
+
+    // perform 2d dct transform on estimate
+
+    // perform 1d transform on estimate
+
+    // calculate Wiener coefficient for each group
+
+    // apply wiener coefficient to each group of transformed noisy data
+
+    // inverse 1d transform on noisy data
+
+    // inverse 2d transform on noisy data
+
+    // aggregate to single image by writing into buffer
 }
 
 void Bm3d::run_kernel() {
     kernel<<<1,1>>>();
+}
+
+void Bm3d::precompute_2d_transform() {
+    // prepare data
+
+    // 2D transformation
+
 }
 
 void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
@@ -240,8 +302,8 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     int group_size = 4;
     int batch = size / (patch_size*patch_size*group_size);
 
-    cufftHandle plan;
-    cufftHandle plan1D;
+    // cufftHandle plan_tmp;
+    // cufftHandle plan1D_tmp;
     uchar *h_data;
     uchar *d_data;
     cudaMalloc(&d_data, sizeof(uchar) * size);
@@ -251,20 +313,20 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
 
     cufftComplex *data;
     cudaMalloc(&data, sizeof(cufftComplex) * size);
-    int n[2] = {16,16};
+    // int n[2] = {16,16};
 
-    if(cufftPlanMany(&plan, 2, n,
-                     NULL, 1, 0,
-                     NULL, 1, 0,
-                     CUFFT_C2C, size/256) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT Plan error: Plan failed");
-        return;
-    }
-    if(cufftPlan1d(&plan1D, patch_size*patch_size*group_size,
-                     CUFFT_C2C, batch) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT Plan error: Plan failed");
-        return;
-    }
+    // if(cufftPlanMany(&plan_tmp, 2, n,
+    //                  NULL, 1, 0,
+    //                  NULL, 1, 0,
+    //                  CUFFT_C2C, size) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT Plan error: Plan failed");
+    //     return;
+    // }
+    // if(cufftPlan1d(&plan1D_tmp, patch_size*patch_size*group_size,
+    //                  CUFFT_C2C, batch) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT Plan error: Plan failed");
+    //     return;
+    // }
     init_time.stop();
     exec_time.start();
     // get input in shape
@@ -283,7 +345,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     }
 
     //hard filter
-    hard_filter<<<dimGrid, dimBlock>>>(data);
+    // hard_filter<<<dimGrid, dimBlock>>>(data);
 
 
     if (cufftExecC2C(plan1D, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
