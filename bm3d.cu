@@ -349,14 +349,14 @@ void Bm3d::test_fill_precompute_data(uchar* src_image) {
     int width = (h_width - patch_size + 1);
     int height = (h_height - patch_size + 1);
     int size = width*height*patch_size*patch_size;
-    float *d_data;
-    float* h_data = (float*)malloc(size*sizeof(float));
-    cudaMalloc(&d_data, sizeof(float) * size);
+    float2* d_data;
+    float2* h_data = (float2*)malloc(size*sizeof(float2));
+    cudaMalloc(&d_data, sizeof(float2) * size);
 
     dim3 dimBlock(16,16);
     dim3 dimGrid((width+15)/16, (height+15)/16);
-    fill_precompute_data<<<dimGrid, dimBlock>>>(d_data);
-    cudaMemcpy(h_data, d_data, size * sizeof(float), cudaMemcpyDeviceToHost);
+    fill_precompute_data<<<dimGrid, dimBlock>>>((cufftComplex*)d_data);
+    cudaMemcpy(h_data, d_data, size * sizeof(float2), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
         return;
@@ -364,7 +364,7 @@ void Bm3d::test_fill_precompute_data(uchar* src_image) {
     inspect_patch(src_image, h_data, width, height, 0,0);
 }
 
-void Bm3d::inspect_patch(uchar* src_image, float* h_data, int width, int height, int i, int j) {
+void Bm3d::inspect_patch(uchar* src_image, float2* h_data, int width, int height, int i, int j) {
     int p2 = h_fst_step_params.patch_size*h_fst_step_params.patch_size;
     for (int q=j;q<j+h_fst_step_params.patch_size;q++) {
         for (int p=i;p<i+h_fst_step_params.patch_size;p++) {
@@ -374,7 +374,7 @@ void Bm3d::inspect_patch(uchar* src_image, float* h_data, int width, int height,
     }
     h_data = h_data + j*width*p2 + i*p2;
     for (int i=0;i<p2;i++) {
-        printf("Test  Data: %0.f\n", *h_data);
+        printf("Test  Data: %0.f\n", (*h_data).x);
         h_data++;
     }
 }
