@@ -321,19 +321,19 @@ void Bm3d::precompute_2d_transform() {
     int height = (h_height - patch_size + 1);
     int size = width*height*patch_size*patch_size;
 
-    float* h_data = malloc(size*sizeof(float));
+    float* h_data = (float*)malloc(size*sizeof(float));
     dim3 dimBlock(16,16);
     dim3 dimGrid((width+15)/16, (height+15)/16);
 
-    fill_precompute_data<<<dimGrid, dimBlock>>>(src_image, d_transformed_patches);
+    fill_precompute_data<<<dimGrid, dimBlock>>>(d_transformed_patches);
 
     // 2D transformation
-    for(int i=0;i<width*height*patch_size*patch_size;i+=patch_size*patch_size*BATCH_2D) {
-        if (cufftExecC2C(plan, d_transformed_patches+i, d_transformed_patches+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
+    // for(int i=0;i<width*height*patch_size*patch_size;i+=patch_size*patch_size*BATCH_2D) {
+    //     if (cufftExecC2C(plan, d_transformed_patches+i, d_transformed_patches+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+    //         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //         return;
+    //     }
+    // }
     cudaMemcpy(h_data, d_transformed_patches, size * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
@@ -347,7 +347,7 @@ void Bm3d::inspect_patch(float* h_data, int width, int height, int i, int j) {
     for (int q=j;q<j+h_fst_step_params.patch_size;q++) {
         for (int p=i;p<i+h_fst_step_params.patch_size;p++) {
             // (p,q) is the image pixel
-            printf("Image Data: %zu\n", d_noisy_image[idx2(p,q,h_fst_step_params.image_width)]);
+            printf("Image Data: %zu\n", d_noisy_image[idx2(p,q,h_width)]);
         }
     }
     h_data = h_data + j*width*p2 + i*p2;
