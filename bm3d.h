@@ -86,7 +86,7 @@ public:
 
     void test_fill_precompute_data(uchar*);
 
-    void inspect_patch(uchar*, float* h_data, int width, int height, int i, int j);
+    void inspect_patch(uchar*, float2* h_data, int width, int height, int i, int j);
 
     void run_kernel();
 

@@ -250,7 +250,7 @@ void Bm3d::denoise(uchar *src_image,
     h_height = height;
     h_channels = channels;
     set_device_param(src_image);
-    precompute_2d_transform(src_image);
+    precompute_2d_transform();
     // first step
     // test_cufft(src_image, dst_image);
     // arrange_block(src_image);
