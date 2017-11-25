@@ -248,7 +248,7 @@ void Bm3d::denoise(uchar *src_image,
     h_height = height;
     h_channels = channels;
     set_device_param(src_image);
-    precompute_2d_transform();
+    precompute_2d_transform(src_image);
     // first step
     // test_cufft(src_image, dst_image);
     // arrange_block(src_image);
@@ -314,7 +314,7 @@ void Bm3d::run_kernel() {
  * stored as (i,j) (i+1,j) (i,j+1) (i+1,j+1), so the dimension is height*width*4
  * we first iterate z dim, then x dim then y dim.
  */
-void Bm3d::precompute_2d_transform() {
+void Bm3d::precompute_2d_transform(uchar* src_image) {
     // prepare data
     int patch_size = h_fst_step_params.patch_size;
     int width = (h_width - patch_size + 1);
@@ -339,15 +339,15 @@ void Bm3d::precompute_2d_transform() {
         fprintf(stderr, "Cuda error: Failed results copy\n");
         return;
     }
-    inspect_patch(h_data, width, height, 0,0);
+    inspect_patch(src_image, h_data, width, height, 0,0);
 }
 
-void Bm3d::inspect_patch(float* h_data, int width, int height, int i, int j) {
+void Bm3d::inspect_patch(uchar*, src_image, float* h_data, int width, int height, int i, int j) {
     int p2 = h_fst_step_params.patch_size*h_fst_step_params.patch_size;
     for (int q=j;q<j+h_fst_step_params.patch_size;q++) {
         for (int p=i;p<i+h_fst_step_params.patch_size;p++) {
             // (p,q) is the image pixel
-            printf("Image Data: %zu\n", d_noisy_image[idx2(p,q,h_width)]);
+            printf("Image Data: %zu\n", src_image[idx2(p,q,h_width)]);
         }
     }
     h_data = h_data + j*width*p2 + i*p2;

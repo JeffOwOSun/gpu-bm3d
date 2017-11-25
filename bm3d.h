@@ -82,9 +82,9 @@ public:
 
     void denoise_2nd_step();
 
-    void precompute_2d_transform();
+    void precompute_2d_transform(uchar*);
 
-    inspect_patch(float* h_data, int width, int height, int i, int j);
+    void inspect_patch(uchar*, float* h_data, int width, int height, int i, int j);
 
     void run_kernel();
 
