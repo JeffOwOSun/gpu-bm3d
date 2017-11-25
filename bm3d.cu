@@ -25,7 +25,7 @@ __global__ void kernel() {
     printf("Image width: %d, height: %d\n", cu_const_params.image_width, cu_const_params.image_height);
 }
 
-__global__ void fill_precompute_data(uchar* image, float* d_transformed_patches) {
+__global__ void fill_precompute_data(float* d_transformed_patches) {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     int j = threadIdx.y + blockIdx.y*blockDim.y;
     int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
@@ -38,8 +38,7 @@ __global__ void fill_precompute_data(uchar* image, float* d_transformed_patches)
         for (int p=i;p<i+cu_const_params.patch_size;p++) {
             // (p,q) is the image pixel
             int z = idx2(p-i,q-j,cu_const_params.patch_size);
-            d_transformed_patches[idx3(z, i, j, cu_const_params.patch_size*cu_const_params.patch_size, width)] = (float)(image[idx2(p, q, cu_const_params.image_width)]);
-            printf("Data at (%d, %d) -> (%d,%d,%d)\n", p,q,i,j,z);
+            d_transformed_patches[idx3(z, i, j, cu_const_params.patch_size*cu_const_params.patch_size, width)] = (float)(cu_const_params.image_data[idx2(p, q, cu_const_params.image_width)]);
         }
     }
 }
@@ -249,7 +248,7 @@ void Bm3d::denoise(uchar *src_image,
     h_height = height;
     h_channels = channels;
     set_device_param(src_image);
-    precompute_2d_transform(src_image);
+    precompute_2d_transform();
     // first step
     // test_cufft(src_image, dst_image);
     // arrange_block(src_image);
@@ -309,16 +308,53 @@ void Bm3d::run_kernel() {
     kernel<<<1,1>>>();
 }
 
-void Bm3d::precompute_2d_transform(uchar* src_image) {
+/*
+ * precompute the 2D transform on all the patches, the data is organized as follows:
+ * for patch at (i,j) with patch size = 2, then in d_transformed_patches, the data is
+ * stored as (i,j) (i+1,j) (i,j+1) (i+1,j+1), so the dimension is height*width*4
+ * we first iterate z dim, then x dim then y dim.
+ */
+void Bm3d::precompute_2d_transform() {
     // prepare data
-    int width = (h_width - h_fst_step_params.patch_size + 1);
-    int height = (h_height - h_fst_step_params.patch_size + 1);
+    int patch_size = h_fst_step_params.patch_size;
+    int width = (h_width - patch_size + 1);
+    int height = (h_height - patch_size + 1);
+    int size = width*height*patch_size*patch_size;
+
+    float* h_data = malloc(size*sizeof(float));
     dim3 dimBlock(16,16);
     dim3 dimGrid((width+15)/16, (height+15)/16);
+
     fill_precompute_data<<<dimGrid, dimBlock>>>(src_image, d_transformed_patches);
 
     // 2D transformation
+    for(int i=0;i<width*height*patch_size*patch_size;i+=patch_size*patch_size*BATCH_2D) {
+        if (cufftExecC2C(plan, d_transformed_patches+i, d_transformed_patches+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+            return;
+        }
+    }
+    cudaMemcpy(h_data, d_transformed_patches, size * sizeof(float), cudaMemcpyDeviceToHost);
+    if (cudaGetLastError() != cudaSuccess) {
+        fprintf(stderr, "Cuda error: Failed results copy\n");
+        return;
+    }
+    inspect_patch(h_data, width, height, 0,0);
+}
 
+void Bm3d::inspect_patch(float* h_data, int width, int height, int i, int j) {
+    int p2 = h_fst_step_params.patch_size*h_fst_step_params.patch_size;
+    for (int q=j;q<j+h_fst_step_params.patch_size;q++) {
+        for (int p=i;p<i+h_fst_step_params.patch_size;p++) {
+            // (p,q) is the image pixel
+            printf("Image Data: %zu\n", d_noisy_image[idx2(p,q,h_fst_step_params.image_width)]);
+        }
+    }
+    h_data = h_data + j*width*p2 + i*p2;
+    for (int i=0;i<p2;i++) {
+        printf("Test  Data: %0.f\n", *h_data);
+        h_data++;
+    }
 }
 
 void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
