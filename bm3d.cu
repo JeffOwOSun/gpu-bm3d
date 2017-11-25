@@ -184,7 +184,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     if(cufftPlanMany(&plan, 2, n,
                      NULL, 1, 0,
                      NULL, 1, 0,
-                     CUFFT_C2C, total_patches) != CUFFT_SUCCESS) {
+                     CUFFT_C2C, BATCH_2D) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
@@ -300,6 +300,8 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     int size = h_width * h_height;
     int patch_size = h_fst_step_params.patch_size;
     int group_size = h_fst_step_params.max_group_size;
+    int num_2Dtransform = size / (patch_size * patch_size);
+    int num_2Dloops = num_2Dtransform / BATCH_2D;
     //int batch = size / (patch_size*patch_size*group_size);
 
     // cufftHandle plan_tmp;
@@ -338,33 +340,39 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     dim3 dimGrid(h_width/16, h_height/16);
     real2complex<<<dimGrid, dimBlock>>>(h_data, data);
 
-    if (cufftExecC2C(plan, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-        return;
+    for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
+        if (cufftExecC2C(plan, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+            return;
+        }
     }
 
-    if (cufftExecC2C(plan1D, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-        return;
-    }
 
-    //hard filter
-    // hard_filter<<<dimGrid, dimBlock>>>(data);
+    // if (cufftExecC2C(plan1D, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //     return;
+    // }
+
+    // //hard filter
+    // // hard_filter<<<dimGrid, dimBlock>>>(data);
 
 
-    if (cufftExecC2C(plan1D, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-        return;
-    }
+    // if (cufftExecC2C(plan1D, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //     return;
+    // }
 
     // normalize cufft 1d transformation
-    normalize<<<dimGrid, dimBlock>>>(data, patch_size*patch_size*group_size);
-
-    if (cufftExecC2C(plan, data, data, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-        return;
+    // normalize<<<dimGrid, dimBlock>>>(data, patch_size*patch_size*group_size);
+    for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
+        if (cufftExecC2C(plan, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+            return;
+        }
     }
+
     complex2real<<<dimGrid, dimBlock>>>(data, d_data, patch_size*patch_size);
+
     cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
