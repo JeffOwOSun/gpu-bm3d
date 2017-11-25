@@ -38,7 +38,9 @@ __global__ void fill_precompute_data(float* d_transformed_patches) {
         for (int p=i;p<i+cu_const_params.patch_size;p++) {
             // (p,q) is the image pixel
             int z = idx2(p-i,q-j,cu_const_params.patch_size);
-            d_transformed_patches[idx3(z, i, j, cu_const_params.patch_size*cu_const_params.patch_size, width)] = (float)(cu_const_params.image_data[idx2(p, q, cu_const_params.image_width)]);
+            int index = idx3(z, i, j, cu_const_params.patch_size*cu_const_params.patch_size, width);
+            d_transformed_patches[index].x = (float)(cu_const_params.image_data[idx2(p, q, cu_const_params.image_width)]);
+            d_transformed_patches[index].y = 0.0f;
         }
     }
 }
@@ -180,7 +182,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMalloc(&d_noisy_image, sizeof(uchar) * h_channels * size);
     cudaMemcpy(d_noisy_image, src_image, sizeof(uchar) * h_channels * size, cudaMemcpyHostToDevice);
 
-    cudaMalloc(&d_transformed_patches, sizeof(float) * total_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size);
+    cudaMalloc(&d_transformed_patches, sizeof(cufftComplex) * total_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size);
 
     // Only use the generic params for now
     GlobalConstants params;
