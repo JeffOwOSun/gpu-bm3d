@@ -18,10 +18,32 @@ __device__ float norm2(cuComplex & a) {
     return (a.x * a.x) + (a.y * a.y);
 }
 
+
+
 __global__ void kernel() {
     printf("Here in kernel\n");
     printf("Image width: %d, height: %d\n", cu_const_params.image_width, cu_const_params.image_height);
 }
+
+__global__ void fill_precompute_data(uchar* image, float* d_transformed_patches) {
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    int j = threadIdx.y + blockIdx.y*blockDim.y;
+    int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
+    int height = (cu_const_params.image_height - cu_const_params.patch_size + 1);
+    if (i >= width || j >= height) {
+        return;
+    }
+    // (i,j) is the top left corner of the patch
+    for (int q=j;q<j+cu_const_params.patch_size;q++) {
+        for (int p=i;p<i+cu_const_params.patch_size;p++) {
+            // (p,q) is the image pixel
+            int z = idx2(p-i,q-j,cu_const_params.patch_size);
+            d_transformed_patches[idx3(z, i, j, cu_const_params.patch_size*cu_const_params.patch_size, width)] = (float)(image[idx2(p, q, cu_const_params.image_width)]);
+            printf("Data at (%d, %d) -> (%d,%d,%d)\n", p,q,i,j,z);
+        }
+    }
+}
+
 
 __global__ void real2complex(uchar* h_data, cufftComplex *output) {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
@@ -286,8 +308,13 @@ void Bm3d::run_kernel() {
     kernel<<<1,1>>>();
 }
 
-void Bm3d::precompute_2d_transform() {
+void Bm3d::precompute_2d_transform(uchar* src_image) {
     // prepare data
+    int width = (h_width - h_fst_step_params.patch_size + 1);
+    int height = (h_height - h_fst_step_params.patch_size + 1);
+    dim3 dimBlock(16,16);
+    dim3 dimGrid((width+15)/16, (h_height+15)/16);
+    fill_precompute_data<<<dimGrid, dimBlock>>>(src_image, d_transformed_patches);
 
     // 2D transformation
 
@@ -340,6 +367,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     dim3 dimGrid(h_width/16, h_height/16);
     real2complex<<<dimGrid, dimBlock>>>(h_data, data);
 
+    // batch size 2D transform. cufft batch size should be determined at plan time
     for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
         if (cufftExecC2C(plan, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
             fprintf(stderr, "CUFFT error: ExecR2C Forward failed");

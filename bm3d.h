@@ -82,7 +82,7 @@ public:
 
     void denoise_2nd_step();
 
-    void precompute_2d_transform();
+    void precompute_2d_transform(uchar*);
 
     void run_kernel();
 
