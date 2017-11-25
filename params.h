@@ -19,7 +19,7 @@ struct Params
 
     Params(unsigned int searching_window_size= 32,
            unsigned int patch_size = 8,
-           unsigned int max_group_size = 8,
+           unsigned int max_group_size = 4,
            unsigned int distance_threshold_1 = 2500,
            unsigned int distance_threshold_2 = 400,
            unsigned int stripe = 3,

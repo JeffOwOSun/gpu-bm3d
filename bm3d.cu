@@ -188,7 +188,7 @@ void Bm3d::set_device_param(uchar* src_image) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-    if(cufftPlan1d(&plan1D, patch_size*patch_size*group_size,
+    if(cufftPlan1d(&plan1D, h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size,
                      CUFFT_C2C, total_ref_patches) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
@@ -298,8 +298,8 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     Stopwatch exec_time;
     init_time.start();
     int size = h_width * h_height;
-    int patch_size = 16;
-    int group_size = 4;
+    int patch_size = h_fst_step_params.patch_size;
+    int group_size = h_fst_step_params.max_group_size;
     int batch = size / (patch_size*patch_size*group_size);
 
     // cufftHandle plan_tmp;
@@ -360,7 +360,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
-    complex2real<<<dimGrid, dimBlock>>>(data, d_data, n[0]*n[1]);
+    complex2real<<<dimGrid, dimBlock>>>(data, d_data, h_fst_step_params.patch_size*h_fst_step_params.patch_size);
     cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
