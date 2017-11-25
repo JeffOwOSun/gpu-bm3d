@@ -136,8 +136,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     int total_patches = (h_width - h_fst_step_params.patch_size + 1) * (h_height - h_fst_step_params.patch_size + 1);
     int total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
 
-    cudaError_t err;
-    err = cudaGetDeviceCount(&deviceCount);
+    cudaGetDeviceCount(&deviceCount);
     printf("---------------------------------------------------------\n");
     printf("Initializing CUDA for CudaRenderer\n");
     printf("Found %d CUDA devices\n", deviceCount);
@@ -179,9 +178,9 @@ void Bm3d::set_device_param(uchar* src_image) {
     params.beta = h_fst_step_params.beta;
 
     cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
-
+    int n[2] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size};
     // create cufft transform plan
-    if(cufftPlanMany(&plan, 2, {h_fst_step_params.patch_size, h_fst_step_params.patch_size},
+    if(cufftPlanMany(&plan, 2, n,
                      NULL, 1, 0,
                      NULL, 1, 0,
                      CUFFT_C2C, total_patches) != CUFFT_SUCCESS) {
@@ -360,7 +359,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
-    complex2real<<<dimGrid, dimBlock>>>(data, d_data, h_fst_step_params.patch_size*h_fst_step_params.patch_size);
+    complex2real<<<dimGrid, dimBlock>>>(data, d_data, patch_size*patch_size);
     cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
