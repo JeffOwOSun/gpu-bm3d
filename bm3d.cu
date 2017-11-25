@@ -250,7 +250,7 @@ void Bm3d::denoise(uchar *src_image,
     h_height = height;
     h_channels = channels;
     set_device_param(src_image);
-    precompute_2d_transform();
+    test_fill_precompute_data(src_image);
     // first step
     // test_cufft(src_image, dst_image);
     // arrange_block(src_image);
@@ -366,16 +366,13 @@ void Bm3d::test_fill_precompute_data(uchar* src_image) {
 
 void Bm3d::inspect_patch(uchar* src_image, float2* h_data, int width, int height, int i, int j) {
     int p2 = h_fst_step_params.patch_size*h_fst_step_params.patch_size;
+    h_data = h_data + j*width*p2 + i*p2;
     for (int q=j;q<j+h_fst_step_params.patch_size;q++) {
         for (int p=i;p<i+h_fst_step_params.patch_size;p++) {
             // (p,q) is the image pixel
-            printf("Image Data: %zu\n", src_image[idx2(p,q,h_width)]);
+            printf("Image Data: %zu, test data: %0.f\n", src_image[idx2(p,q,h_width)], (*h_data).x);
+            h_data++;
         }
-    }
-    h_data = h_data + j*width*p2 + i*p2;
-    for (int i=0;i<p2;i++) {
-        printf("Test  Data: %0.f\n", (*h_data).x);
-        h_data++;
     }
 }
 
