@@ -178,7 +178,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     params.lambda_3d = h_fst_step_params.lambda_3d;
     params.beta = h_fst_step_params.beta;
 
-    err = cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
+    cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
 
     // create cufft transform plan
     if(cufftPlanMany(&plan, 2, {h_fst_step_params.patch_size, h_fst_step_params.patch_size},
@@ -300,7 +300,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     int size = h_width * h_height;
     int patch_size = h_fst_step_params.patch_size;
     int group_size = h_fst_step_params.max_group_size;
-    int batch = size / (patch_size*patch_size*group_size);
+    //int batch = size / (patch_size*patch_size*group_size);
 
     // cufftHandle plan_tmp;
     // cufftHandle plan1D_tmp;

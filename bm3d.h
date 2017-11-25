@@ -81,6 +81,8 @@ public:
 
     void denoise_2nd_step();
 
+    void precompute_2d_transform();
+
     void run_kernel();
 
     void test_cufft(uchar*, uchar*);
