@@ -316,6 +316,8 @@ void Bm3d::run_kernel() {
  */
 void Bm3d::precompute_2d_transform(uchar* src_image) {
     // prepare data
+    Stopwatch fill_time;
+    Stopwatch tran_time;
     int patch_size = h_fst_step_params.patch_size;
     int width = (h_width - patch_size + 1);
     int height = (h_height - patch_size + 1);
@@ -324,25 +326,29 @@ void Bm3d::precompute_2d_transform(uchar* src_image) {
     float* h_data = (float*)malloc(size*sizeof(float));
     dim3 dimBlock(16,16);
     dim3 dimGrid((width+15)/16, (height+15)/16);
-
+    fill_time.start();
     fill_precompute_data<<<dimGrid, dimBlock>>>(d_transformed_patches);
-
+    fill_time.stop();
     // 2D transformation
-    // for(int i=0;i<width*height*patch_size*patch_size;i+=patch_size*patch_size*BATCH_2D) {
-    //     if (cufftExecC2C(plan, d_transformed_patches+i, d_transformed_patches+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-    //         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-    //         return;
-    //     }
-    // }
+    tran_time.start();
+    for(int i=0;i<width*height*patch_size*patch_size;i+=patch_size*patch_size*BATCH_2D) {
+        if (cufftExecC2C(plan, d_transformed_patches+i, d_transformed_patches+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+            return;
+        }
+    }
+    tran_time.stop();
     cudaMemcpy(h_data, d_transformed_patches, size * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
         return;
     }
-    inspect_patch(src_image, h_data, width, height, 0,0);
+    printf("Data filling using %f\n", fill_time.getSeconds());
+    printf("Exec using %f\n", tran_time.getSeconds());
+    //inspect_patch(src_image, h_data, width, height, 0,0);
 }
 
-void Bm3d::inspect_patch(uchar*, src_image, float* h_data, int width, int height, int i, int j) {
+void Bm3d::inspect_patch(uchar* src_image, float* h_data, int width, int height, int i, int j) {
     int p2 = h_fst_step_params.patch_size*h_fst_step_params.patch_size;
     for (int q=j;q<j+h_fst_step_params.patch_size;q++) {
         for (int p=i;p<i+h_fst_step_params.patch_size;p++) {
