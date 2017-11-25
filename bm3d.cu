@@ -25,7 +25,7 @@ __global__ void kernel() {
     printf("Image width: %d, height: %d\n", cu_const_params.image_width, cu_const_params.image_height);
 }
 
-__global__ void fill_precompute_data(float* d_transformed_patches) {
+__global__ void fill_precompute_data(cufftComplex* d_transformed_patches) {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     int j = threadIdx.y + blockIdx.y*blockDim.y;
     int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
@@ -316,7 +316,7 @@ void Bm3d::run_kernel() {
  * stored as (i,j) (i+1,j) (i,j+1) (i+1,j+1), so the dimension is height*width*4
  * we first iterate z dim, then x dim then y dim.
  */
-void Bm3d::precompute_2d_transform(uchar* src_image) {
+void Bm3d::precompute_2d_transform() {
     // prepare data
     Stopwatch fill_time;
     Stopwatch tran_time;
@@ -340,14 +340,28 @@ void Bm3d::precompute_2d_transform(uchar* src_image) {
         }
     }
     tran_time.stop();
-    cudaMemcpy(h_data, d_transformed_patches, size * sizeof(float), cudaMemcpyDeviceToHost);
+    printf("Data filling using %f\n", fill_time.getSeconds());
+    printf("Exec using %f\n", tran_time.getSeconds());
+}
+
+void Bm3d::test_fill_precompute_data(uchar* src_image) {
+    int patch_size = h_fst_step_params.patch_size;
+    int width = (h_width - patch_size + 1);
+    int height = (h_height - patch_size + 1);
+    int size = width*height*patch_size*patch_size;
+    float *d_data;
+    float* h_data = (float*)malloc(size*sizeof(float));
+    cudaMalloc(&d_data, sizeof(float) * size);
+
+    dim3 dimBlock(16,16);
+    dim3 dimGrid((width+15)/16, (height+15)/16);
+    fill_precompute_data<<<dimGrid, dimBlock>>>(d_data);
+    cudaMemcpy(h_data, d_data, size * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
         return;
     }
-    printf("Data filling using %f\n", fill_time.getSeconds());
-    printf("Exec using %f\n", tran_time.getSeconds());
-    //inspect_patch(src_image, h_data, width, height, 0,0);
+    inspect_patch(src_image, h_data, width, height, 0,0);
 }
 
 void Bm3d::inspect_patch(uchar* src_image, float* h_data, int width, int height, int i, int j) {
