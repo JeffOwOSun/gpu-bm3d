@@ -41,6 +41,7 @@ __global__ void complex2real(cufftComplex *data, uchar* output, int size) {
 
     if (i<cu_const_params.image_width && j<cu_const_params.image_height) {
         output[index] = data[index].x / (float)(size);
+
     }
 }
 
@@ -312,6 +313,10 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
 
     cufftComplex *data;
     cudaMalloc(&data, sizeof(cufftComplex) * size);
+    if (cudaGetLastError() != cudaSuccess) {
+        fprintf(stderr, "Cuda error: initialize error\n");
+        return;
+    }
     // int n[2] = {16,16};
 
     // if(cufftPlanMany(&plan_tmp, 2, n,
