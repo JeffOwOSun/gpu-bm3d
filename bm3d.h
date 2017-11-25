@@ -20,6 +20,7 @@
 #define idx2(x,y,dim_x) ( (x) + ((y)*(dim_x)) )
 #define idx3(x,y,z,dim_x,dim_y) ( (x) + ((y)*(dim_x)) + ((z)*(dim_x)*(dim_y)) )
 #define BATCH_2D 512
+#define BATCH_1D 512
 
 class Bm3d
 {
