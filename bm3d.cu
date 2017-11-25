@@ -249,8 +249,9 @@ void Bm3d::denoise(uchar *src_image,
     h_height = height;
     h_channels = channels;
     set_device_param(src_image);
+    precompute_2d_transform(src_image);
     // first step
-    test_cufft(src_image, dst_image);
+    // test_cufft(src_image, dst_image);
     // arrange_block(src_image);
     // second step
 
@@ -313,7 +314,7 @@ void Bm3d::precompute_2d_transform(uchar* src_image) {
     int width = (h_width - h_fst_step_params.patch_size + 1);
     int height = (h_height - h_fst_step_params.patch_size + 1);
     dim3 dimBlock(16,16);
-    dim3 dimGrid((width+15)/16, (h_height+15)/16);
+    dim3 dimGrid((width+15)/16, (height+15)/16);
     fill_precompute_data<<<dimGrid, dimBlock>>>(src_image, d_transformed_patches);
 
     // 2D transformation
@@ -326,10 +327,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     init_time.start();
     int size = h_width * h_height;
     int patch_size = h_fst_step_params.patch_size;
-    int group_size = h_fst_step_params.max_group_size;
-    int num_2Dtransform = size / (patch_size * patch_size);
-    int num_2Dloops = num_2Dtransform / BATCH_2D;
-    //int batch = size / (patch_size*patch_size*group_size);
+    int group_size = h_fst_step_params.max_group_size;;
 
     // cufftHandle plan_tmp;
     // cufftHandle plan1D_tmp;
@@ -346,20 +344,6 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         fprintf(stderr, "Cuda error: initialize error\n");
         return;
     }
-    // int n[2] = {16,16};
-
-    // if(cufftPlanMany(&plan_tmp, 2, n,
-    //                  NULL, 1, 0,
-    //                  NULL, 1, 0,
-    //                  CUFFT_C2C, size) != CUFFT_SUCCESS) {
-    //     fprintf(stderr, "CUFFT Plan error: Plan failed");
-    //     return;
-    // }
-    // if(cufftPlan1d(&plan1D_tmp, patch_size*patch_size*group_size,
-    //                  CUFFT_C2C, batch) != CUFFT_SUCCESS) {
-    //     fprintf(stderr, "CUFFT Plan error: Plan failed");
-    //     return;
-    // }
     init_time.stop();
     exec_time.start();
     // get input in shape
