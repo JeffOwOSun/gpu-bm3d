@@ -1,3 +1,5 @@
 .vscode/
 .DS_Store
 opencv_test
+*.o
+bm3d
