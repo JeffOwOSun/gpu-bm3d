@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <string>
 
-// #include "bm3d.hpp"
+#include "bm3d.h"
 #define cimg_display 1
 #define cimg_use_png
-#include "CImg.h"
+#include "Cimg.h"
 #include <getopt.h>
 
 using namespace cimg_library;
@@ -87,33 +87,17 @@ int main(int argc, char** argv)
     }
 
     printf("Width: %d, Height: %d\n", image.width(), image.height());
-    image.display("Image");
-    // //Launch BM3D
-    // try {
-    //     BM3D bm3d;
-    //     //          (n, k,N, T,   p,sigma, L3D)
-    //     bm3d.set_hard_params(19,8,16,3000,3,sigma, 2.7f);
-    //     bm3d.set_wien_params(19,8,32,400, 3,sigma);
-    //     bm3d.denoise_host_image(image.data(),
-    //              image2.data(),
-    //              image.width(),
-    //              image.height(),
-    //              channels,
-    //              twostep,
-    //              verbose);
-    // }
-    // catch(std::exception & e)  {
-    //     std::cerr << "There was an error while processing image: " << std::endl << e.what() << std::endl;
-    //     return 1;
-    // }
 
-    // if (channels == 3) //color
-    //     //Convert back to RGB color space
-    //     image2 = image2.get_channels(0,2).YCbCrtoRGB();
-    // else
-    //     image2 = image2.get_channel(0);
-    // //Save denoised image
-    // image2.save( argv[2] );
-
+    //Launch BM3D
+    Bm3d bm3d;
+    bm3d.denoise(image.data(),
+             image2.data(),
+             image.width(),
+             image.height(),
+             channels,
+             step,
+             verbose);
+    image2 = image2.get_channel(0);
+    //image2.save(output_file.c_str());
     return 0;
 }

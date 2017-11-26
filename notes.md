@@ -22,8 +22,21 @@
 4. Each group only contains the block indices, we can allocate additional buffers for precomputed 2D tranformations, basic estimates.
 5. Deal with border effects.
 6. Color image.
+7. use a heap to maintain the N most similar patches wrt current ref patch
+8. Aggregate: to prevent potential contention due to per pixel atomic add, we could allocate an array for each patch c, each ref patch can write to c's array after atomic adding the cur index.
+9. Using convolution for block matching
 
 ## Problems:
 1. The initialization takes fair amount of time, cufft plan takes lots of time
 2. how to do DCT or haar
+
+
+
+## Tricks
+1. .cu and .cpp are different even with the same complier (nvcc or gcc), .cu file are separate and will not link global variable togather, it does not resolve unlinked variable so `extern` will not work.
+2. we could write device funtions in different file and include them in the main .cu file. This will essentially expand the include file.
+
+## Todo
+1. 2D transform and hard thresholding. (cufft), input is a n*(# ref) uint array, with first as ref. Each entry (4 bytes) will store x,y values, each takes 2 bytes. Also we have an array to store how many patchs for each ref.
+
 
