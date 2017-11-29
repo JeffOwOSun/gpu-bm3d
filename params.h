@@ -37,4 +37,10 @@ struct Params
         beta(beta) {}
 };
 
+// structure to store information of matched blocks
+struct Q {
+    int distance;
+    uint2 position;
+};
+
 #endif

@@ -11,14 +11,19 @@ float abspow2(cuComplex & a)
     return (a.x * a.x) + (a.y * a.y);
 }
 
+
+extern "C" void do_block_matching(
+    Q* g_stacks,                //OUT: Size [num_ref * max_num_patches_in_stack]
+    uint* g_num_patches_in_stack,   //OUT: For each reference patch contains number of similar patches. Size [num_ref]
+);
+
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // Putting all the cuda kernels here
 ///////////////////////////////////////////////////////////////////////////////////////
 __device__ float norm2(cuComplex & a) {
     return (a.x * a.x) + (a.y * a.y);
 }
-
-
 
 __global__ void kernel() {
     printf("Here in kernel\n");
@@ -183,6 +188,10 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMemcpy(d_noisy_image, src_image, sizeof(uchar) * h_channels * size, cudaMemcpyHostToDevice);
 
     cudaMalloc(&d_transformed_patches, sizeof(cufftComplex) * total_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size);
+    cudaMalloc(&d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
+    cudaMalloc(&d_num_patches_in_stack, sizeof(uint) * total_ref_patches);
+
+
 
     // Only use the generic params for now
     GlobalConstants params;
@@ -250,7 +259,8 @@ void Bm3d::denoise(uchar *src_image,
     h_height = height;
     h_channels = channels;
     set_device_param(src_image);
-    test_fill_precompute_data(src_image);
+
+    // test_fill_precompute_data(src_image);
     // first step
     // test_cufft(src_image, dst_image);
     // arrange_block(src_image);
@@ -468,7 +478,7 @@ void Bm3d::arrange_block(uchar* src_image) {
     int group_size = 2;
     int patch_size = 4;
     uint2 *h_stacks;
-    uint2 *d_stacks;
+    uint2 *d2_stacks;
     cufftComplex *data_stack;
 
     h_stacks = (uint2*)malloc(sizeof(uint2) * size);
@@ -481,14 +491,14 @@ void Bm3d::arrange_block(uchar* src_image) {
             }
         }
     }
-    cudaMalloc(&d_stacks, sizeof(uint2) * size);
-    cudaMemcpy(d_stacks, h_stacks, sizeof(uint2) * size, cudaMemcpyHostToDevice);
+    cudaMalloc(&d2_stacks, sizeof(uint2) * size);
+    cudaMemcpy(d2_stacks, h_stacks, sizeof(uint2) * size, cudaMemcpyHostToDevice);
 
     cudaMalloc(&data_stack, sizeof(cufftComplex) * size * patch_size * patch_size);
 
     // group per block, each pixel maps to one thread
     dim3 dimBlock(patch_size, patch_size);
     dim3 dimGrid(size/group_size);
-    fill_data<<<dimGrid, dimBlock>>>(d_stacks, data_stack, size, patch_size, group_size);
+    fill_data<<<dimGrid, dimBlock>>>(d2_stacks, data_stack, size, patch_size, group_size);
 
 }
