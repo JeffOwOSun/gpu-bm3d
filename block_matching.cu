@@ -52,11 +52,11 @@ __global__ void block_matching(
     // tid is the id of reference patch
 	uint tid = blockIdx.x * blockDim.x + threadIdx.x;
     uint2 num_ref_patch = make_uint2(
-        image_dim.x > patch_dim.x ?
-        (image_dim.x - patch_dim.x) / ref_stride.x + 1 :
+        image_dim.x > patch_dim ?
+        (image_dim.x - patch_dim) / ref_stride + 1 :
         1,
-        image_dim.y > patch_dim.y ?
-        (image_dim.y - patch_dim.y) / ref_stride.y + 1 :
+        image_dim.y > patch_dim ?
+        (image_dim.y - patch_dim) / ref_stride + 1 :
         1
     );
 
@@ -114,13 +114,4 @@ __global__ void block_matching(
             }
         }
     }
-}
-
-extern "C" void do_block_matching(
-    Q* g_stacks,                //OUT: Size [num_ref * max_num_patches_in_stack]
-    uint* g_num_patches_in_stack,   //OUT: For each reference patch contains number of similar patches. Size [num_ref]
-    ) {
-    block_matching<<<gridDim, blockDim>>>(
-        g_stacks,
-        g_num_patches_in_stack);
 }

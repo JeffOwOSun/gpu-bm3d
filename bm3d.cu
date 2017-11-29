@@ -1,4 +1,5 @@
 #include "bm3d.h"
+#include "block_matching.cu"
 
 /*
  * Read-only variables for all cuda kernels. These variables
@@ -12,11 +13,14 @@ float abspow2(cuComplex & a)
 }
 
 
-extern "C" void do_block_matching(
+void do_block_matching(
     Q* g_stacks,                //OUT: Size [num_ref * max_num_patches_in_stack]
     uint* g_num_patches_in_stack,   //OUT: For each reference patch contains number of similar patches. Size [num_ref]
-);
-
+    ) {
+    block_matching<<<gridDim, blockDim>>>(
+        g_stacks,
+        g_num_patches_in_stack);
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Putting all the cuda kernels here
