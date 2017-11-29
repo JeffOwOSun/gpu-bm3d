@@ -23,7 +23,7 @@ __device__ int distance(
     uint l2norm = 0;
     for (int y = 0; y < dim; ++y) {
         for (int x = 0; x < dim; ++x) {
-            int diff = image[idx2(p.x+x,p.y+y)] - image[idx2(q.x+x,q.y+y)];
+            int diff = image[idx2(p.x+x,p.y+y,dim)] - image[idx2(q.x+x,q.y+y,dim)];
             l2norm += diff * diff;
         }
     }
