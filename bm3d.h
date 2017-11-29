@@ -92,6 +92,8 @@ public:
 
     void test_cufft(uchar*, uchar*);
 
+    void test_block_matching();
+
     void arrange_block(uchar* src_image);
 
     /* data */

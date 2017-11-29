@@ -1,5 +1,5 @@
 #include "bm3d.h"
-#include "block_matching.cu"
+#include "block_matching.cu_inl"
 
 /*
  * Read-only variables for all cuda kernels. These variables
@@ -467,6 +467,52 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     for (int i=0;i<size;i++) {
         printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
     }
+}
+
+void Bm3d::test_block_matching() {
+    // generate a dummy image
+    const int img_width = 40; // a 40 by 40 checkerboard of 8x8 patch
+    const int patch_width = 8;
+    uchar *dummy_image = malloc(img_width * img_width * sizeof(uchar));
+    for (int y = 0; y < img_width; y += patch_width) {
+        for (int x = 0; x < img_width; x += patch_width) {
+            // (x, y) is the top-left corner coordinate
+            bool isWhite = (y * img_width + x) & 1;
+            for (int j = 0; j < patch_width; ++j) {
+                for (int i = 0; i < patch_width; ++i) {
+                    // (x + i, y + j) is the pixel coordinate
+                    int idx = idx2(x+i, y+j, img_width);
+                    dummy_image[idx] = isWhite ? 255 : 0;
+                }
+            }
+        }
+    }
+
+    for (int y = 0; y < img_width; y += patch_width) {
+        for (int x = 0; x < img_width; x += patch_width) {
+            if (dummy_image[idx]) {
+                printf("x");
+            } else {
+                printf(" ");
+            }
+        }
+        printf("\n");
+    }
+
+    h_width = h_height = img_width;
+    h_channels = 1;
+    // set up the parameters and consts
+    set_device_param(dummy_image);
+
+    // determine how many threads we need to spawn
+    const int total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
+    const int total_num_threads = total_ref_patches;
+    const int threads_per_block = 32;
+    const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
+    // call our block matching magic
+    block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
+
+    free_device_params();
 }
 
 /*
