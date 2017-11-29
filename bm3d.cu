@@ -1,5 +1,5 @@
 #include "bm3d.h"
-#include "block_matching.cu"
+#include "block_matching.cu_inl"
 
 /*
  * Read-only variables for all cuda kernels. These variables

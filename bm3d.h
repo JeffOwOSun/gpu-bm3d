@@ -96,7 +96,7 @@ public:
 
     void arrange_block();
 
-    void Bm3d::test_arrange_block();
+    void test_arrange_block();
 
     void do_block_matching(Q*, uint*);
 
