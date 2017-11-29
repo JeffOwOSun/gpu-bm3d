@@ -1,11 +1,12 @@
 #include "bm3d.h"
-#include "block_matching.cu_inl"
 
 /*
  * Read-only variables for all cuda kernels. These variables
  * will be stored in the "constant" memory on GPU for fast read.
  */
 __constant__ GlobalConstants cu_const_params;
+
+//#include "block_matching.cu_inl"
 
 float abspow2(cuComplex & a)
 {
@@ -107,7 +108,7 @@ __global__ void fill_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComple
 
     // start patch num
     int start = group_id*cu_const_params.max_group_size;
-    d_transformed_stacks = start * patch_size * patch_size;
+    d_transformed_stacks += start * patch_size * patch_size;
 
     for (int i=start;i<start+cu_const_params.max_group_size;i++) {
         if (i - start < d_num_patches_in_stack[group_id]) {
@@ -115,7 +116,7 @@ __global__ void fill_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComple
             uint patch_x = d_stacks[i].position.x;
             uint patch_y = d_stacks[i].position.y;
             for (int z=0;z<patch_size*patch_size;z++) {
-                int index = idx3(z, i, j, patch_size*patch_size, width);
+                int index = idx3(z, patch_x, patch_y, patch_size*patch_size, width);
                 d_transformed_stacks->x = precompute_patches[index].x;
                 d_transformed_stacks->y = precompute_patches[index].y;
                 d_transformed_stacks++;
@@ -502,8 +503,7 @@ void Bm3d::test_arrange_block() {
         test_q[i].position.y = 0;
     }
     cudaMemcpy(d_stacks, test_q, sizeof(Q) * size, cudaMemcpyHostToDevice);
-
-    uint* h_num_patches = (uint*)calloc(total_ref_patches, size(uint));
+    uint* h_num_patches = (uint*)calloc(total_ref_patches, sizeof(uint));
     h_num_patches[0] = h_fst_step_params.max_group_size;
     h_num_patches[1] = h_fst_step_params.max_group_size - 2;
     cudaMemcpy(d_num_patches_in_stack, h_num_patches, sizeof(uint)*total_ref_patches, cudaMemcpyHostToDevice);
@@ -518,7 +518,4 @@ void Bm3d::do_block_matching(
     Q* g_stacks,                //OUT: Size [num_ref * max_num_patches_in_stack]
     uint* g_num_patches_in_stack,   //OUT: For each reference patch contains number of similar patches. Size [num_ref]
     ) {
-    block_matching<<<gridDim, blockDim>>>(
-        g_stacks,
-        g_num_patches_in_stack);
 }
