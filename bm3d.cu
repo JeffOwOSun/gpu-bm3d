@@ -497,17 +497,37 @@ void Bm3d::arrange_block() {
 
 void Bm3d::test_arrange_block() {
     int size = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches;
-    Q* test_q = (Q*)malloc(sizeof(Q)*size);
+
+    Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);
     for (int i=0;i<2*h_fst_step_params.max_group_size; i++) {
         test_q[i].position.x = i;
         test_q[i].position.y = 0;
     }
-    cudaMemcpy(d_stacks, test_q, sizeof(Q) * size, cudaMemcpyHostToDevice);
+    cufftComplex* h_transformed_stacks = (cufftComplex*)malloc(sizeof(cufftComplex) * size);
+
+    cudaMemcpy(d_stacks, test_q, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyHostToDevice);
     uint* h_num_patches = (uint*)calloc(total_ref_patches, sizeof(uint));
     h_num_patches[0] = h_fst_step_params.max_group_size;
     h_num_patches[1] = h_fst_step_params.max_group_size - 2;
     cudaMemcpy(d_num_patches_in_stack, h_num_patches, sizeof(uint)*total_ref_patches, cudaMemcpyHostToDevice);
     arrange_block();
+    cudaMemcpy(h_transformed_stacks, d_transformed_stacks, sizeof(cufftComplex) * size, cudaMemcpyDeviceToHost);
+    float2* h_data = (float2*)malloc(size*sizeof(float2));
+    cudaMemcpy(h_data, (float2*)precompute_patches, size * sizeof(float2), cudaMemcpyDeviceToHost);
+    for (int i=0;i<2*h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size;i++) {
+        int x = i/(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
+        int y = 0;
+        if (i % (h_fst_step_params.patch_size*h_fst_step_params.patch_size) == 0) {
+            printf("Patch (%d, %d)\n", x, 0);
+        }
+        int z = i - x*(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
+        int index = idx3(z, x, y, h_fst_step_params.patch_size*h_fst_step_params.patch_size, h_width);
+        printf("Transform: (%3.f, %3.f) vs Precompute: (%.3f, %.3f)\n",
+            h_transformed_stacks[i].x,
+            h_transformed_stacks[i].y,
+            h_data[index].x,
+            h_data[index].y);
+    }
 }
 
 
@@ -516,6 +536,6 @@ void Bm3d::test_arrange_block() {
  */
 void Bm3d::do_block_matching(
     Q* g_stacks,                //OUT: Size [num_ref * max_num_patches_in_stack]
-    uint* g_num_patches_in_stack,   //OUT: For each reference patch contains number of similar patches. Size [num_ref]
+    uint* g_num_patches_in_stack   //OUT: For each reference patch contains number of similar patches. Size [num_ref]
     ) {
 }
