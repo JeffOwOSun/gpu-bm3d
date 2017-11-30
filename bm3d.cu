@@ -1,5 +1,4 @@
 #include "bm3d.h"
-#include "block_matching.cu_inl"
 
 /*
  * Read-only variables for all cuda kernels. These variables
@@ -7,20 +6,21 @@
  */
 __constant__ GlobalConstants cu_const_params;
 
+#include "block_matching.cu_inl"
+
 float abspow2(cuComplex & a)
 {
     return (a.x * a.x) + (a.y * a.y);
 }
 
-
-void do_block_matching(
-    Q* g_stacks,                //OUT: Size [num_ref * max_num_patches_in_stack]
-    uint* g_num_patches_in_stack,   //OUT: For each reference patch contains number of similar patches. Size [num_ref]
-    ) {
-    block_matching<<<gridDim, blockDim>>>(
-        g_stacks,
-        g_num_patches_in_stack);
-}
+// void do_block_matching(
+//     Q* g_stacks,                //OUT: Size [num_ref * max_num_patches_in_stack]
+//     uint* g_num_patches_in_stack   //OUT: For each reference patch contains number of similar patches. Size [num_ref]
+//     ) {
+//     block_matching<<<gridDim, blockDim>>>(
+//         g_stacks,
+//         g_num_patches_in_stack);
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Putting all the cuda kernels here
@@ -191,8 +191,23 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMalloc(&d_noisy_image, sizeof(uchar) * h_channels * size);
     cudaMemcpy(d_noisy_image, src_image, sizeof(uchar) * h_channels * size, cudaMemcpyHostToDevice);
 
-    cudaMalloc(&d_transformed_patches, sizeof(cufftComplex) * total_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size);
-    cudaMalloc(&d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
+    if (cudaSuccess != cudaMalloc(&d_transformed_patches, sizeof(cufftComplex) * total_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size)) {
+        printf("d_transformed_patches allocation failed\n");
+    }
+    if (cudaSuccess != cudaMalloc(&d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size)) {
+        printf("d_stacks allocation failed\n");
+        printf("d_stacks size %llu\n", sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
+        printf("sizeof Q %llu\n", sizeof(Q));
+        printf("total_ref_patches %llu\n", total_ref_patches);
+    }
+    size_t fr, total;
+    cudaMemGetInfo(&fr, &total);
+    printf("mem info %lu %lu\n", fr, total);
+    cudaError_t code = cudaGetLastError();
+    if (code != cudaSuccess) {
+        fprintf(stderr, ">>>>>>>BOOOOOM<<< Cuda error1: %s\n", cudaGetErrorString(code));
+        return;
+    }
     cudaMalloc(&d_num_patches_in_stack, sizeof(uint) * total_ref_patches);
 
 
@@ -217,18 +232,23 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
     int n[2] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size};
     // create cufft transform plan
-    if(cufftPlanMany(&plan, 2, n,
-                     NULL, 1, 0,
-                     NULL, 1, 0,
-                     CUFFT_C2C, BATCH_2D) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT Plan error: Plan failed");
-        return;
-    }
-    if(cufftPlan1d(&plan1D, h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size,
-                     CUFFT_C2C, BATCH_1D) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT Plan error: Plan failed");
-        return;
-    }
+    // if(cufftPlanMany(&plan, 2, n,
+    //                  NULL, 1, 0,
+    //                  NULL, 1, 0,
+    //                  CUFFT_C2C, BATCH_2D) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT Plan error: Plan failed");
+    //     return;
+    // }
+    // cudaError_t code = cudaGetLastError();
+    // if (code != cudaSuccess) {
+    //     fprintf(stderr, "Cuda error: %s\n", cudaGetErrorString(code));
+    //     return;
+    // }
+    // if(cufftPlan1d(&plan1D, h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size,
+    //                  CUFFT_C2C, BATCH_1D) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT Plan error: Plan failed");
+    //     return;
+    // }
 
 }
 
@@ -469,48 +489,111 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     }
 }
 
-void Bm3d::test_block_matching() {
+void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     // generate a dummy image
-    const int img_width = 40; // a 40 by 40 checkerboard of 8x8 patch
-    const int patch_width = 8;
-    uchar *dummy_image = malloc(img_width * img_width * sizeof(uchar));
-    for (int y = 0; y < img_width; y += patch_width) {
-        for (int x = 0; x < img_width; x += patch_width) {
-            // (x, y) is the top-left corner coordinate
-            bool isWhite = (y * img_width + x) & 1;
-            for (int j = 0; j < patch_width; ++j) {
-                for (int i = 0; i < patch_width; ++i) {
-                    // (x + i, y + j) is the pixel coordinate
-                    int idx = idx2(x+i, y+j, img_width);
-                    dummy_image[idx] = isWhite ? 255 : 0;
+    printf("testing block_matching\n");
+    if (!input_image) {
+        const int img_width = 40; // a 40 by 40 checkerboard of 8x8 patch
+        const int patch_width = 8;
+        uchar *dummy_image = (uchar *)malloc(img_width * img_width * sizeof(uchar));
+        bool isWhite = false;
+        for (int y = 0; y < img_width; y += patch_width) {
+            for (int x = 0; x < img_width; x += patch_width) {
+                // (x, y) is the top-left corner coordinate
+                for (int j = 0; j < patch_width; ++j) {
+                    for (int i = 0; i < patch_width; ++i) {
+                        // (x + i, y + j) is the pixel coordinate
+                        int idx = idx2(x+i, y+j, img_width);
+                        input_image[idx] = isWhite ? 255 : 0;
+                    }
                 }
+                isWhite = !isWhite;
             }
         }
-    }
 
-    for (int y = 0; y < img_width; y += patch_width) {
-        for (int x = 0; x < img_width; x += patch_width) {
-            if (dummy_image[idx]) {
-                printf("x");
-            } else {
-                printf(" ");
-            }
-        }
-        printf("\n");
+        // set up the parameters and consts
+        input_image = dummy_image;
     }
-
-    h_width = h_height = img_width;
+    h_width = width;
+    h_height = height;
     h_channels = 1;
-    // set up the parameters and consts
-    set_device_param(dummy_image);
+    set_device_param(input_image);
+
+    printf("width, height: %d %d\n", width, height);
 
     // determine how many threads we need to spawn
+    const int num_ref_patches_x = (h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1;
     const int total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
+    printf("total_ref_patches %d\n", total_ref_patches);
     const int total_num_threads = total_ref_patches;
-    const int threads_per_block = 32;
+    const int threads_per_block = 256;
     const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
+    printf("total_num_threads %d num_block %d\n", total_ref_patches, num_blocks);
+
+    // cudaError_t code = cudaGetLastError();
+    // if (code != cudaSuccess) {
+    //     fprintf(stderr, "Cuda error: %s\n", cudaGetErrorString(code));
+    //     return;
+    // }
     // call our block matching magic
     block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
+    Q *h_stacks = (Q *)malloc(sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
+    cudaMemcpy(h_stacks, d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyDeviceToHost);
+    uint *h_num_patches_in_stack = (uint *)malloc(sizeof(uint) * total_ref_patches);
+    cudaMemcpy(h_num_patches_in_stack, d_num_patches_in_stack, sizeof(uint) * total_ref_patches, cudaMemcpyDeviceToHost);
+
+    // print the first stack
+    const int which_stack = 13970;
+    const int stack_x = which_stack % num_ref_patches_x;
+    const int stack_y = which_stack / num_ref_patches_x;
+
+    h_stacks = &h_stacks[which_stack * h_fst_step_params.max_group_size];
+
+
+
+    printf("number of patches in stack %d: %d\n", which_stack, h_num_patches_in_stack[which_stack]);
+    for (int i = 0; i < h_num_patches_in_stack[which_stack]; ++i) {
+        const uint start_x = h_stacks[i].position.x;
+        const uint start_y = h_stacks[i].position.y;
+        printf("distance %d, x %d y %d\n", h_stacks[i].distance, start_x, start_y);
+        for (int y = 0; y < h_fst_step_params.patch_size; ++y) {
+            for (int x = 0; x < h_fst_step_params.patch_size; ++x) {
+                const int idx = idx2( start_x + x, start_y + y, width);
+                input_image[idx] = 255;
+            }
+        }
+    }
+
+    // set the original ref patch to 0
+    for (int y = 0; y < h_fst_step_params.patch_size; ++y) {
+        for (int x = 0; x < h_fst_step_params.patch_size; ++x) {
+            const int idx = idx2(
+                stack_x * h_fst_step_params.stripe + x, 
+                stack_y * h_fst_step_params.stripe + y, 
+                width);
+            input_image[idx] = 0;
+        }
+    }
+
+    // for (int y = 0; y < img_width; y += 1) {
+    //     for (int x = 0; x < img_width; x += 1) {
+    //         int idx = idx2(x, y, img_width);
+    //         switch(input_image[idx]) {
+    //             case 255:
+    //                 printf("x");
+    //                 break;
+    //             case 127:
+    //                 printf("o");
+    //                 break;
+    //             case 110:
+    //                 printf("*");
+    //                 break;
+    //             default:
+    //                 printf(" ");
+    //         }
+    //     }
+    //     printf("\n");
+    // }
 
     free_device_params();
 }

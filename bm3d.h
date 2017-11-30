@@ -92,7 +92,7 @@ public:
 
     void test_cufft(uchar*, uchar*);
 
-    void test_block_matching();
+    void test_block_matching(uchar *input_image, int width = 40, int height = 40);
 
     void arrange_block(uchar* src_image);
 

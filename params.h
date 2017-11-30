@@ -1,6 +1,9 @@
 #ifndef _PARAMS_H_
 #define _PARAMS_H_
 
+#include <vector_types.h>
+#include <vector_functions.h>
+
 struct Params
 {
     /*
@@ -39,7 +42,7 @@ struct Params
 
 // structure to store information of matched blocks
 struct Q {
-    int distance;
+    uint distance;
     uint2 position;
 };
 

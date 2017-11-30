@@ -8,6 +8,9 @@
 #include "Cimg.h"
 #include <getopt.h>
 
+#include <vector_types.h>
+#include <vector_functions.h>
+
 using namespace cimg_library;
 using namespace std;
 
@@ -98,7 +101,9 @@ int main(int argc, char** argv)
              step,
              verbose);
     image2 = image2.get_channel(0);
-    bm3d.test_block_matching();
-    //image2.save(output_file.c_str());
+    image2.save(output_file.c_str());
+
+    bm3d.test_block_matching(image, image.width(), image.height());
+    image.save(output_file.c_str());
     return 0;
 }
