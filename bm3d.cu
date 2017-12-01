@@ -275,19 +275,7 @@ void Bm3d::set_device_param(uchar* src_image) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-    int dim1D[1] = {h_fst_step_params.max_group_size};
-    int inembed[1] = {0};
-    int onembed[1] = {0};
-    if(cufftPlanMany(&plan1D, 1, dim1D,
-                     inembed,
-                     h_fst_step_params.patch_size* h_fst_step_params.patch_size, // stride
-                     1, // batch distance
-                     onembed,
-                     h_fst_step_params.patch_size* h_fst_step_params.patch_size, // stride
-                     1,
-                     CUFFT_C2C,
-                     h_fst_step_params.patch_size* h_fst_step_params.patch_size // batch size
-                     ) != CUFFT_SUCCESS) {
+    if(cufftPlan1D(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, BATCH_1D)) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
@@ -325,13 +313,13 @@ void Bm3d::denoise(uchar *src_image,
     h_height = height;
     h_channels = channels;
     set_device_param(src_image);
-    precompute_2d_transform();
-    do_block_matching();
-    fetch_data();
+    // precompute_2d_transform();
+    // do_block_matching();
+    // fetch_data();
     // arrange_block();
     // test_fill_precompute_data(src_image);
     // first step
-    // test_cufft(src_image, dst_image);
+    test_cufft(src_image, dst_image);
     // DFT1D();
     // second step
 
@@ -493,7 +481,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         }
     }
 
-    for (int i=0;i<size;i+=patch_size*patch_size*group_size*BATCH_1D) {
+    for (int i=0;i<size;i+=group_size*BATCH_1D) {
         if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
             fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
             return;
@@ -503,7 +491,7 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     //hard filter
     // hard_filter<<<dimGrid, dimBlock>>>(data);
 
-    for (int i=0;i<size;i+=patch_size*patch_size*group_size*BATCH_1D) {
+    for (int i=0;i<size;i+=group_size*BATCH_1D) {
         if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
             fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
             return;
@@ -511,7 +499,8 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
     }
 
     // normalize cufft 1d transformation
-    normalize<<<dimGrid, dimBlock>>>(data, patch_size*patch_size*group_size);
+    normalize<<<dimGrid, dimBlock>>>(data, group_size);
+
     for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
         if (cufftExecC2C(plan, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
             fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
