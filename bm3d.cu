@@ -289,7 +289,7 @@ void Bm3d::denoise(uchar *src_image,
     // test_fill_precompute_data(src_image);
     // first step
     // test_cufft(src_image, dst_image);
-    test_arrange_block();
+    DFT1D();
     // second step
 
     // copy image from device to host
