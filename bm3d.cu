@@ -551,8 +551,8 @@ void Bm3d::DFT1D() {
 
     Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);
     for (int i=0;i<total_ref_patches * h_fst_step_params.max_group_size; i++) {
-        test_q[i].position.x = 3;
-        test_q[i].position.y = 0;
+        test_q[i].position.x = (i%h_fst_step_params.max_group_size);
+        test_q[i].position.y = ((i+1)%h_fst_step_params.max_group_size);
     }
     cufftComplex* h_transformed_stacks = (cufftComplex*)malloc(sizeof(cufftComplex) * size);
 
