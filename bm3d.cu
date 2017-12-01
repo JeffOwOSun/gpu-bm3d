@@ -547,6 +547,26 @@ void Bm3d::test_arrange_block() {
  *         on the same pixel of every patch in the same group. We will use the stride.
  */
 void Bm3d::DFT1D() {
+    int size = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches;
+
+    Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);
+    for (int i=0;i<total_ref_patches * h_fst_step_params.max_group_size; i++) {
+        test_q[i].position.x = 3;
+        test_q[i].position.y = 0;
+    }
+    cufftComplex* h_transformed_stacks = (cufftComplex*)malloc(sizeof(cufftComplex) * size);
+
+    cudaMemcpy(d_stacks, test_q, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyHostToDevice);
+    uint* h_num_patches = (uint*)calloc(total_ref_patches, sizeof(uint));
+    for (int i=0;i<total_ref_patches;i++) {
+        h_num_patches[i] = h_fst_step_params.max_group_size;
+    }
+    cudaMemcpy(d_num_patches_in_stack, h_num_patches, sizeof(uint)*total_ref_patches, cudaMemcpyHostToDevice);
+    Stopwatch arrange;
+    arrange.start();
+    arrange_block();
+    arrange.stop();
+
     Stopwatch trans;
     trans.start();
     int step_size = h_fst_step_params.max_group_size * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
@@ -558,7 +578,7 @@ void Bm3d::DFT1D() {
         }
     }
     trans.stop();
-    printf("%d calls, 1D transform needs %.5f\n", total_ref_patches, trans.getSeconds());
+    printf("Arrange needs %.5f, 1D transform needs %.5f\n", arrange.getSeconds(), trans.getSeconds());
 }
 
 /*
