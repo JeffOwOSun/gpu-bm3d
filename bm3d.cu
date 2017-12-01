@@ -327,7 +327,8 @@ void Bm3d::denoise(uchar *src_image,
     set_device_param(src_image);
     precompute_2d_transform();
     do_block_matching();
-    arrange_block();
+    fetch_data();
+    // arrange_block();
     // test_fill_precompute_data(src_image);
     // first step
     // test_cufft(src_image, dst_image);
@@ -612,8 +613,8 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     for (int y = 0; y < h_fst_step_params.patch_size; ++y) {
         for (int x = 0; x < h_fst_step_params.patch_size; ++x) {
             const int idx = idx2(
-                stack_x * h_fst_step_params.stripe + x, 
-                stack_y * h_fst_step_params.stripe + y, 
+                stack_x * h_fst_step_params.stripe + x,
+                stack_y * h_fst_step_params.stripe + y,
                 width);
             input_image[idx] = 0;
         }
@@ -699,9 +700,13 @@ void Bm3d::test_arrange_block() {
  *              through num_pathches first, then width then height.
  */
 void Bm3d::fetch_data() {
+    Stopwatch fetch;
+    fetch.start();
     int thread_per_block = 256;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     fetch_precompute_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, precompute_patches, d_rearrange_stacks);
+    fetch.stop();
+    printf("Fectching data needs %s\n", fetch.getSeconds());
 }
 
 
