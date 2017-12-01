@@ -236,8 +236,8 @@ void Bm3d::set_device_param(uchar* src_image) {
         return;
     }
     int dim1D[1] = {h_fst_step_params.max_group_size};
-    int inembed = {0};
-    int onembed = {0};
+    int inembed[1] = {0};
+    int onembed[1] = {0};
     if(cufftPlanMany(&plan1D, 1, dim1D,
                      inembed,
                      h_fst_step_params.patch_size* h_fst_step_params.patch_size, // stride
@@ -547,8 +547,8 @@ void Bm3d::test_arrange_block() {
  *         on the same pixel of every patch in the same group. We will use the stride.
  */
 void Bm3d::DFT1D() {
-    Stopwatch 1d_trans;
-    1d_trans.start();
+    Stopwatch trans;
+    trans.start();
     int step_size = h_fst_step_params.max_group_size * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
     int total_size = total_ref_patches * step_size;
     for (int i=0; i<total_size; i+=step_size) {
@@ -557,8 +557,8 @@ void Bm3d::DFT1D() {
             return;
         }
     }
-    1d_trans.stop();
-    printf("1D transform needs %.5f\n", 1d_trans.getSeconds());
+    trans.stop();
+    printf("1D transform needs %.5f\n", trans.getSeconds());
 }
 
 /*
