@@ -33,16 +33,18 @@ private:
     uchar* d_denoised_image;            // save denoised image
 
     //Auxiliary arrays
-    cufftComplex* d_transformed_patches;       // 3D array of precomputed 2D transformation of all the patches
+    cufftComplex* precompute_patches;       // 3D array of precomputed 2D transformation of all the patches
+    cufftComplex* d_transformed_stacks;        // 4D array to store the intermediate result, iterate patch first then width then height (Group, patch, width, height)
     Q* d_stacks;                               // 3D array of patch addresses, size is [num_ref * max_num_patches_in_stack]
+    uint* d_num_patches_in_stack;       //Number of similar patches for each referenca patch that are stored in d_stacks
     std::vector<float*> d_numerator;    //Numerator used for aggregation
     std::vector<float*> d_denominator;  //Denminator used for aggregation
-    uint* d_num_patches_in_stack;       //Number of similar patches for each referenca patch that are stored in d_stacks
     // cuComplex* d_transformed_stacks;    //3D groups of a batch
     float* d_weight;                   //Weights for aggregation
     float* d_wien_coef;             //Only for two step denoising, contains wiener coefficients
     float* d_kaiser_window;         //Kaiser window used for aggregation
-
+    int total_ref_patches;
+    int total_patches;
 
 
     // model parameter
@@ -94,8 +96,13 @@ public:
 
     void test_block_matching(uchar *input_image, int width = 40, int height = 40);
 
-    void arrange_block(uchar* src_image);
+    void arrange_block();
 
+    void test_arrange_block();
+
+    void DFT1D();
+
+    void do_block_matching(Q*, uint*);
     /* data */
 };
 
@@ -110,6 +117,7 @@ struct GlobalConstants {
     float sigma;
     float lambda_3d;
     float beta;
+    int total_ref_patches;
 
     int image_channels;
     int image_width;
