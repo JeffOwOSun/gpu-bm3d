@@ -102,7 +102,7 @@ public:
 
     void DFT1D();
 
-    void do_block_matching(Q*, uint*);
+    void do_block_matching();
     /* data */
 };
 

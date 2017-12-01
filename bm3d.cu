@@ -286,10 +286,12 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     precompute_2d_transform();
+    do_block_matching();
+    arrange_block();
     // test_fill_precompute_data(src_image);
     // first step
     // test_cufft(src_image, dst_image);
-    DFT1D();
+    // DFT1D();
     // second step
 
     // copy image from device to host
@@ -673,8 +675,19 @@ void Bm3d::DFT1D() {
 /*
  * do_block_matching - launch kernel to run block matching
  */
-void Bm3d::do_block_matching(
-    Q* g_stacks,                //OUT: Size [num_ref * max_num_patches_in_stack]
-    uint* g_num_patches_in_stack   //OUT: For each reference patch contains number of similar patches. Size [num_ref]
-    ) {
+void Bm3d::do_block_matching() {
+    // determine how many threads we need to spawn
+    Stopwatch bm_time;
+    bm_time.start();
+    const int num_ref_patches_x = (h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1;
+    const int total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
+    printf("total_ref_patches %d\n", total_ref_patches);
+    const int total_num_threads = total_ref_patches;
+    const int threads_per_block = 512;
+    const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
+    printf("total_num_threads %d num_block %d\n", total_ref_patches, num_blocks);
+    block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
+    cudaDeviceSynchronize();
+    bm_time.stop();
+    printf("Block Matching: %f\n", bm_time.getSeconds());
 }
