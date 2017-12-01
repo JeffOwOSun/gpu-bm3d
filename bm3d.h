@@ -95,14 +95,15 @@ public:
 
     void test_cufft(uchar*, uchar*);
 
+    void test_block_matching(uchar *input_image, int width = 40, int height = 40);
+
     void arrange_block();
 
     void test_arrange_block();
 
     void DFT1D();
 
-    void do_block_matching(Q*, uint*);
-
+    void do_block_matching();
     /* data */
 };
 
