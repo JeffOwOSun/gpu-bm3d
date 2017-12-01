@@ -226,17 +226,28 @@ void Bm3d::set_device_param(uchar* src_image) {
     params.total_ref_patches = total_ref_patches;
 
     cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
-    int n[2] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size};
+    int dim2D[2] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size};
     // create cufft transform plan
-    if(cufftPlanMany(&plan, 2, n,
+    if(cufftPlanMany(&plan, 2, dim2D,
                      NULL, 1, 0,
                      NULL, 1, 0,
                      CUFFT_C2C, BATCH_2D) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-    if(cufftPlan1d(&plan1D, h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size,
-                     CUFFT_C2C, BATCH_1D) != CUFFT_SUCCESS) {
+    int dim1D[1] = {h_fst_step_params.max_group_size};
+    int inembed = {0};
+    int onembed = {0};
+    if(cufftPlanMany(&plan1D, 1, dim1D,
+                     inembed,
+                     h_fst_step_params.patch_size* h_fst_step_params.patch_size, // stride
+                     1, // batch distance
+                     onembed,
+                     h_fst_step_params.patch_size* h_fst_step_params.patch_size, // stride
+                     1,
+                     CUFFT_C2C,
+                     h_fst_step_params.patch_size* h_fst_step_params.patch_size // batch size
+                     ) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
@@ -522,7 +533,7 @@ void Bm3d::test_arrange_block() {
         }
         int z = i - x*(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
         int index = idx3(z, x, y, h_fst_step_params.patch_size*h_fst_step_params.patch_size, h_width);
-        printf("Transform: (%3.f, %3.f) vs Precompute: (%.3f, %.3f)\n",
+        printf("Transform: (%.3f, %.3f) vs Precompute: (%.3f, %.3f)\n",
             h_transformed_stacks[i].x,
             h_transformed_stacks[i].y,
             h_data[index].x,
@@ -530,6 +541,25 @@ void Bm3d::test_arrange_block() {
     }
 }
 
+/*
+ * DFT1D - Perform the 1D DFT transform on the 3D stacks. Since the data is organized
+ *         as iterate through each patch in every group. We need to perform 1D DFT
+ *         on the same pixel of every patch in the same group. We will use the stride.
+ */
+void Bm3d::DFT1D() {
+    Stopwatch 1d_trans;
+    1d_trans.start();
+    int step_size = h_fst_step_params.max_group_size * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
+    int total_size = total_ref_patches * step_size;
+    for (int i=0; i<total_size; i+=step_size) {
+        if (cufftExecC2C(plan1D, d_transformed_stacks+i, d_transformed_stacks+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+            return;
+        }
+    }
+    1d_trans.stop();
+    printf("1D transform needs %.5f\n", 1d_trans.getSeconds());
+}
 
 /*
  * do_block_matching - launch kernel to run block matching

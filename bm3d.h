@@ -98,6 +98,8 @@ public:
 
     void test_arrange_block();
 
+    void DFT1D();
+
     void do_block_matching(Q*, uint*);
 
     /* data */
