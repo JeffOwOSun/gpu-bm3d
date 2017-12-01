@@ -35,6 +35,8 @@
 ## Tricks
 1. .cu and .cpp are different even with the same complier (nvcc or gcc), .cu file are separate and will not link global variable togather, it does not resolve unlinked variable so `extern` will not work.
 2. we could write device funtions in different file and include them in the main .cu file. This will essentially expand the include file.
+3. we uses 4d array to store our results, patch_x -> patch_y -> patch -> group, but performing 1D transform needs 0.21946s, problem is that we call the kernel 28561 times. The overhead is large.
+4. Try rearrange the data into
 
 ## Todo
 1. 2D transform and hard thresholding. (cufft), input is a n*(# ref) uint array, with first as ref. Each entry (4 bytes) will store x,y values, each takes 2 bytes. Also we have an array to store how many patchs for each ref.
