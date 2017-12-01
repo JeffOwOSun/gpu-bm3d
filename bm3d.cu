@@ -757,8 +757,6 @@ void Bm3d::do_block_matching() {
     // determine how many threads we need to spawn
     Stopwatch bm_time;
     bm_time.start();
-    const int num_ref_patches_x = (h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1;
-    const int total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
     printf("total_ref_patches %d\n", total_ref_patches);
     const int total_num_threads = total_ref_patches;
     const int threads_per_block = 512;
