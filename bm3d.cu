@@ -481,29 +481,28 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         }
     }
 
-    for (int i=0;i<size;i+=group_size*BATCH_1D) {
-        if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
+    // for (int i=0;i<size;i+=group_size*BATCH_1D) {
+    //     if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+    //         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //         return;
+    //     }
+    // }
 
-    //hard filter
-    // hard_filter<<<dimGrid, dimBlock>>>(data);
+    // //hard filter
+    // // hard_filter<<<dimGrid, dimBlock>>>(data);
 
-    for (int i=0;i<size;i+=group_size*BATCH_1D) {
-        if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-
-    // normalize cufft 1d transformation
-    normalize<<<dimGrid, dimBlock>>>(data, group_size);
+    // for (int i=0;i<size;i+=group_size*BATCH_1D) {
+    //     if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+    //         fprintf(stderr, "CUFFT error: ExecC2C CUFFT_INVERSE failed");
+    //         return;
+    //     }
+    // }
+    // // normalize cufft 1d transformation
+    // normalize<<<dimGrid, dimBlock>>>(data, group_size);
 
     for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
         if (cufftExecC2C(plan, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+            fprintf(stderr, "CUFFT error: ExecC2C CUFFT_INVERSE failed");
             return;
         }
     }
