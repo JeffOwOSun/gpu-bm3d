@@ -706,7 +706,7 @@ void Bm3d::fetch_data() {
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     fetch_precompute_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, precompute_patches, d_rearrange_stacks);
     fetch.stop();
-    printf("Fectching data needs %s\n", fetch.getSeconds());
+    printf("Fectching data needs %.5f\n", fetch.getSeconds());
 }
 
 
@@ -759,7 +759,7 @@ void Bm3d::do_block_matching() {
     bm_time.start();
     printf("total_ref_patches %d\n", total_ref_patches);
     const int total_num_threads = total_ref_patches;
-    const int threads_per_block = 512;
+    const int threads_per_block = 256;
     const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
     printf("total_num_threads %d num_block %d\n", total_ref_patches, num_blocks);
     block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
