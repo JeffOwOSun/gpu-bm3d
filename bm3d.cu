@@ -275,7 +275,7 @@ void Bm3d::set_device_param(uchar* src_image) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-    if(cufftPlan1D(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, BATCH_1D)) != CUFFT_SUCCESS) {
+    if(cufftPlan1d(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, BATCH_1D) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
