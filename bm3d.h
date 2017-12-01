@@ -104,6 +104,8 @@ public:
     void DFT1D();
 
     void do_block_matching();
+
+    void fetch_data();
     /* data */
 };
 
