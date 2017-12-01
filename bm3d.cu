@@ -558,7 +558,7 @@ void Bm3d::DFT1D() {
         }
     }
     trans.stop();
-    printf("1D transform needs %.5f\n", trans.getSeconds());
+    printf("%d calls, 1D transform needs %.5f\n", total_ref_patches, trans.getSeconds());
 }
 
 /*
