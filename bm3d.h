@@ -35,6 +35,7 @@ private:
     //Auxiliary arrays
     cufftComplex* precompute_patches;       // 3D array of precomputed 2D transformation of all the patches
     cufftComplex* d_transformed_stacks;        // 4D array to store the intermediate result, iterate patch first then width then height (Group, patch, width, height)
+    cufftComplex* d_rearrange_stacks;
     Q* d_stacks;                               // 3D array of patch addresses, size is [num_ref * max_num_patches_in_stack]
     uint* d_num_patches_in_stack;       //Number of similar patches for each referenca patch that are stored in d_stacks
     std::vector<float*> d_numerator;    //Numerator used for aggregation

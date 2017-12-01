@@ -132,6 +132,46 @@ __global__ void fill_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComple
     }
 }
 
+/*
+ *  Each thread maps to a group
+ */
+__global__ void fetch_precompute_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComplex* precompute_patches, cufftComplex* d_rearrange_stacks) {
+    int group_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (group_id >= cu_const_params.total_ref_patches) {
+        return;
+    }
+    int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
+    int patch_size = cu_const_params.patch_size;
+
+    // start patch num
+    int start = group_id*cu_const_params.max_group_size;
+    d_rearrange_stacks += start * patch_size * patch_size;
+
+    for (int i=start;i<start+cu_const_params.max_group_size;i++) {
+        if (i - start < d_num_patches_in_stack[group_id]) {
+            uint patch_x = d_stacks[i].position.x;
+            uint patch_y = d_stacks[i].position.y;
+            for (int z=0;z<patch_size*patch_size;z++) {
+                int index = idx3(z, patch_x, patch_y, patch_size*patch_size, width);
+                int w = z % patch_size;
+                int h = z / patch_size;
+                int out_index = idx3(i-start, w, h, cu_const_params.max_group_size, patch_size);
+                d_rearrange_stacks[out_index].x = precompute_patches[index].x;
+                d_rearrange_stacks[out_index].y = precompute_patches[index].y;
+            }
+        } else {
+            // fill 0s
+            for (int z=0;z<patch_size*patch_size;z++) {
+                int w = z % patch_size;
+                int h = z / patch_size;
+                int out_index = idx3(i-start, w, h, cu_const_params.max_group_size, patch_size);
+                d_rearrange_stacks[out_index].x = 0.0f;
+                d_rearrange_stacks[out_index].y = 0.0f;
+            }
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // Class member functions
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +245,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMalloc(&d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
     cudaMalloc(&d_num_patches_in_stack, sizeof(uint) * total_ref_patches);
     cudaMalloc(&d_transformed_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
-
+    cudaMalloc(&d_rearrange_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
 
     // Only use the generic params for now
     GlobalConstants params;
@@ -540,6 +580,19 @@ void Bm3d::test_arrange_block() {
             h_data[index].y);
     }
 }
+
+/*
+ * fetch_data - according to the stacked patch indices, fetching data from the transformed
+ *              data array of 2D DCT. Input is an array of uint2, every N uint2
+ *              is a group. For each group of dim (width, height, num_patches), we will go
+ *              through num_pathches first, then width then height.
+ */
+void Bm3d::fetch_data() {
+    int thread_per_block = 256;
+    int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
+    fetch_precompute_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, precompute_patches, d_rearrange_stacks);
+}
+
 
 /*
  * DFT1D - Perform the 1D DFT transform on the 3D stacks. Since the data is organized
