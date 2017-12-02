@@ -237,7 +237,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     printf("---------------------------------------------------------\n");
 
     // copy original image to cuda
-    int size = h_width * h_height;
+    const uint size = h_width * h_height;
     cudaMalloc(&d_noisy_image, sizeof(uchar) * h_channels * size);
     cudaMemcpy(d_noisy_image, src_image, sizeof(uchar) * h_channels * size, cudaMemcpyHostToDevice);
 
@@ -246,6 +246,12 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMalloc(&d_num_patches_in_stack, sizeof(uint) * total_ref_patches);
     cudaMalloc(&d_transformed_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
     cudaMalloc(&d_rearrange_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+
+    cudaMalloc(&d_numerator, sizeof(float) * size);
+    cudaMalloc(&d_denominator, sizeof(uint) * size);
+    cudaMalloc(&d_weight, sizeof(uint) * total_ref_patches);
+
+    cudaMalloc(&d_denoised_image, sizeof(uchar) * size);
 
     // Only use the generic params for now
     GlobalConstants params;

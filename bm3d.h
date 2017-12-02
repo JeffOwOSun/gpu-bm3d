@@ -38,10 +38,10 @@ private:
     cufftComplex* d_rearrange_stacks;
     Q* d_stacks;                               // 3D array of patch addresses, size is [num_ref * max_num_patches_in_stack]
     uint* d_num_patches_in_stack;       //Number of similar patches for each referenca patch that are stored in d_stacks
-    std::vector<float*> d_numerator;    //Numerator used for aggregation
-    std::vector<float*> d_denominator;  //Denminator used for aggregation
+    float* d_numerator;    //Numerator used for aggregation
+    uint* d_denominator;  //Denminator used for aggregation
     // cuComplex* d_transformed_stacks;    //3D groups of a batch
-    float* d_weight;                   //Weights for aggregation
+    uint* d_weight;                   //Weights for aggregation
     float* d_wien_coef;             //Only for two step denoising, contains wiener coefficients
     float* d_kaiser_window;         //Kaiser window used for aggregation
     int total_ref_patches;

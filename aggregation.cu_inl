@@ -11,3 +11,94 @@
 // Index conversion
 #define idx2(x,y,dim_x) ( (x) + ((y)*(dim_x)) )
 
+__device__ float get_pixel_in_stack(
+    // the array
+    cufftComplex* d_transformed_stacks;
+    // dimensions
+    const uint max_num_patches_in_stack,
+    const uint patch_dim,
+    // indices
+    const uint stack_id,
+    const uint z, // layer index in the stack
+    const uint y,
+    const uint x
+) {
+    // groups are stacked along the z direction
+    const uint idx = 
+        stack_id * max_num_patches_in_stack * patch_dim * patch_dim +
+        z * patch_dim * patch_dim + 
+        y * patch_dim + 
+        x;
+    return d_transformed_stacks[idx].x;
+}
+
+/**
+ * What do aggregation do?
+ * 1. re distribute the patches to their respective locations according to the Q structure (g_stacks)
+ */
+__global__ void aggregate(
+    const Q *g_stacks, //IN: Size [num_ref * max_num_patches_in_stack]
+    const uint *g_num_patches_in_stack, //IN: Size [num_ref]
+    const uint *g_num_nonzero_coefk, //IN: Size [num_ref]
+    const cufftComplex* d_transformed_stacks,
+    float *numerator, //OUT: numerator of image size
+    uint *denominator //OUT: denominator of image size
+) {
+    const uint patch_dim = cu_const_params.patch_size;
+    const uint max_num_patches_in_stack = cu_const_params.max_group_size;
+    const uint2 image_dim = make_uint2(
+        cu_const_params.image_width,
+        cu_const_params.image_height);
+    // first calculate which stack I'm responsible of
+    const uint tid = blockIdx.x * blockDim.x + threadIdx.x;
+    const Q* const my_stack = &g_stacks[tid * max_num_patches_in_stack];
+
+    const uint my_weight = denominator[tid];
+
+    for (uint z = 0; z < g_num_patches_in_stack[tid]; ++z) {
+        const uint start_x = my_stack[z].position.x ;
+        const uint start_y = my_stack[z].position.y ;
+        for (uint y = 0; y < patch_dim; ++y) {
+            for (uint x = 0; x < patch_dim; ++x) {
+                // get the pixel value at this stack location
+                float pixel = get_pixel_in_stack(d_transformed_stacks, max_num_patches_in_stack, patch_dim, stack_id, z, y, x);
+                // write this value to the numerator
+                uint out_x = x + start_x;
+                uint out_y = y + start_y;
+                uint out_idx = idx2(out_x, out_y, image_dim.x);
+                atomicAdd(&numerator[out_idx], my_weight * pixel);
+                atomicAdd(&denominator[out_idx], my_weight);
+            }
+        }
+    }
+}
+
+__global__ void reduction(
+    float *numerator, //IN: numerator of image size
+    uint *denominator, //IN: denominator of image size
+    uchar *output //OUT: output image
+) {
+    // one pixel per thread
+    const uint pixel_id = blockIdx.x * blockDim.x + threadIdx.x;
+    output[pixel_id] = (uchar)(numerator[pixel_id] / denominator[pixel_id]);
+}
+
+void Bm3d::do_aggregation(uchar *dst_image) {
+    const uint num_threads_per_block = 512;
+    // step 1: do aggregation, one thread per stack
+    uint num_blocks = (total_ref_patches + num_threads_per_block - 1) / num_threads_per_block;
+    aggregate<<<num_blocks, num_threads_per_block>>>(
+        d_stacks,
+        d_num_patches_in_stack,
+        d_weight,
+        d_transformed_stacks,
+        d_numerator,
+        d_denominator
+    );
+
+    // step 2: reduction. calculate how many pixels
+    const uint num_pixels = h_width * h_height;
+    num_blocks = (num_pixels + num_threads_per_block - 1) / num_threads_per_block;
+    reduction<<<num_blocks, num_threads_per_block>>>(d_numerator, d_denominator, d_denoised_image);
+    cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
+}
