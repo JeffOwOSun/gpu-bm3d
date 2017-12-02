@@ -588,7 +588,8 @@ void Bm3d::test_arrange_block(uchar *input_data) {
         test_q[i].position.y = 0;
     }
     float* h_data = (float*)malloc(sizeof(float) * size);
-
+    float* d_data;
+    cudaMalloc(&d_data, sizeof(float) * size);
     cudaMemcpy(d_stacks, test_q, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyHostToDevice);
     uint* h_num_patches = (uint*)calloc(total_ref_patches, sizeof(uint));
     h_num_patches[0] = h_fst_step_params.max_group_size;
