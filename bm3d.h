@@ -97,13 +97,17 @@ public:
 
     void test_block_matching(uchar *input_image, int width = 40, int height = 40);
 
-    void arrange_block();
+    void arrange_block(uchar*);
 
-    void test_arrange_block();
+    void test_arrange_block(uchar*);
 
     void DFT1D();
 
     void do_block_matching();
+
+    void rearrange_to_1D_layout();
+
+    void rearrange_to_2D_layout();
     /* data */
 };
 

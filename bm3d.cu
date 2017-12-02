@@ -57,15 +57,12 @@ __global__ void real2complex(uchar* h_data, cufftComplex *output) {
     }
 }
 
-__global__ void complex2real(cufftComplex *data, uchar* output, int size) {
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
-    int j = threadIdx.y + blockIdx.y*blockDim.y;
-    int index = j*cu_const_params.image_width + i;
-
-    if (i<cu_const_params.image_width && j<cu_const_params.image_height) {
-        output[index] = data[index].x / (float)(size);
-
+__global__ void complex2real(cufftComplex *data, float* output, int total_size, int trans_size) {
+    int index = threadIdx.x + blockIdx.x * blockDim.x;
+    if (index >= total_size) {
+        return;
     }
+    output[index] = data[index].x / (float)(trans_size);
 }
 
 /*
@@ -96,14 +93,14 @@ __global__ void hard_filter(cufftComplex *data) {
 }
 
 /*
- *  Each thread maps to a group
+ *  Each thread maps to a group, d_transformed_stacks is organized as (w, h, patch in group)
  */
-__global__ void fill_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComplex* precompute_patches, cufftComplex* d_transformed_stacks) {
+__global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in_stack, uchar* input_data, cufftComplex* d_transformed_stacks) {
     int group_id = threadIdx.x + blockIdx.x * blockDim.x;
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
     }
-    int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
+    int width = cu_const_params.image_width;
     int patch_size = cu_const_params.patch_size;
 
     // start patch num
@@ -116,9 +113,9 @@ __global__ void fill_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComple
             uint patch_x = d_stacks[i].position.x;
             uint patch_y = d_stacks[i].position.y;
             for (int z=0;z<patch_size*patch_size;z++) {
-                int index = idx3(z, patch_x, patch_y, patch_size*patch_size, width);
-                d_transformed_stacks->x = precompute_patches[index].x;
-                d_transformed_stacks->y = precompute_patches[index].y;
+                int index = idx2(patch_x + (z%patch_size), patch_y + (z/patch_size), width);
+                d_transformed_stacks->x = (float)(input_data[index]);
+                d_transformed_stacks->y = 0.0f;
                 d_transformed_stacks++;
             }
         } else {
@@ -135,39 +132,53 @@ __global__ void fill_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComple
 /*
  *  Each thread maps to a group
  */
-__global__ void fetch_precompute_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComplex* precompute_patches, cufftComplex* d_rearrange_stacks) {
+__global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftComplex* d_rearrange_stacks) {
     int group_id = threadIdx.x + blockIdx.x * blockDim.x;
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
     }
-    int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
     int patch_size = cu_const_params.patch_size;
 
     // start patch num
     int start = group_id*cu_const_params.max_group_size;
     d_rearrange_stacks += start * patch_size * patch_size;
+    d_transformed_stacks += start * patch_size * patch_size;
 
-    for (int i=start;i<start+cu_const_params.max_group_size;i++) {
-        if (i - start < d_num_patches_in_stack[group_id]) {
-            uint patch_x = d_stacks[i].position.x;
-            uint patch_y = d_stacks[i].position.y;
-            for (int z=0;z<patch_size*patch_size;z++) {
-                int index = idx3(z, patch_x, patch_y, patch_size*patch_size, width);
-                int w = z % patch_size;
-                int h = z / patch_size;
-                int out_index = idx3(i-start, w, h, cu_const_params.max_group_size, patch_size);
-                d_rearrange_stacks[out_index].x = precompute_patches[index].x;
-                d_rearrange_stacks[out_index].y = precompute_patches[index].y;
+    for (int z=0;z<cu_const_params.max_group_size;z++) {
+        for (int k=0;k<patch_size*patch_size;k++) {
+            int w = k % patch_size;
+            int h = k / patch_size;
+            int index = idx3(z, w, h, cu_const_params.max_group_size, cu_const_params.max_group_size*patch_size);
+            d_rearrange_stacks[index].x = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x;
+            d_rearrange_stacks[index].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y;
+            if (group_id == 2 && z == 2) {
+                printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y);
             }
-        } else {
-            // fill 0s
-            for (int z=0;z<patch_size*patch_size;z++) {
-                int w = z % patch_size;
-                int h = z / patch_size;
-                int out_index = idx3(i-start, w, h, cu_const_params.max_group_size, patch_size);
-                d_rearrange_stacks[out_index].x = 0.0f;
-                d_rearrange_stacks[out_index].y = 0.0f;
-            }
+        }
+    }
+}
+
+__global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks, cufftComplex* d_transformed_stacks) {
+    int group_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (group_id >= cu_const_params.total_ref_patches) {
+        return;
+    }
+    int patch_size = cu_const_params.patch_size;
+
+    // start patch num
+    int start = group_id*cu_const_params.max_group_size;
+    d_rearrange_stacks += start * patch_size * patch_size;
+    d_transformed_stacks += start * patch_size * patch_size;
+
+    for (int i=0;i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
+        int z = i % cu_const_params.max_group_size;
+        int w = (i / cu_const_params.max_group_size) % patch_size;
+        int h = (i / (cu_const_params.max_group_size * patch_size));
+        int index = idx3(w, h, z, patch_size, patch_size*patch_size);
+        d_transformed_stacks[index].x = d_rearrange_stacks[i].x;
+        d_transformed_stacks[index].y = d_rearrange_stacks[i].y;
+        if (group_id == 2 && z == 2) {
+            printf("to 1D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
         }
     }
 }
@@ -277,27 +288,15 @@ void Bm3d::set_device_param(uchar* src_image) {
     if(cufftPlanMany(&plan, 2, dim2D,
                      NULL, 1, 0,
                      NULL, 1, 0,
-                     CUFFT_C2C, BATCH_2D) != CUFFT_SUCCESS) {
+                     CUFFT_C2C, total_ref_patches*h_fst_step_params.max_group_size) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-    int dim1D[1] = {h_fst_step_params.max_group_size};
-    int inembed[1] = {0};
-    int onembed[1] = {0};
-    if(cufftPlanMany(&plan1D, 1, dim1D,
-                     inembed,
-                     h_fst_step_params.patch_size* h_fst_step_params.patch_size, // stride
-                     1, // batch distance
-                     onembed,
-                     h_fst_step_params.patch_size* h_fst_step_params.patch_size, // stride
-                     1,
-                     CUFFT_C2C,
-                     h_fst_step_params.patch_size* h_fst_step_params.patch_size // batch size
-                     ) != CUFFT_SUCCESS) {
+    int batch_size = total_ref_patches * h_fst_step_params.max_group_size * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
+    if(cufftPlan1d(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, batch_size) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-
 }
 
 /*
@@ -331,9 +330,9 @@ void Bm3d::denoise(uchar *src_image,
     h_height = height;
     h_channels = channels;
     set_device_param(src_image);
-    precompute_2d_transform();
-    do_block_matching();
-    arrange_block();
+    // precompute_2d_transform();
+    denoise_fst_step();
+    // fetch_data();
     // test_fill_precompute_data(src_image);
     // first step
     // test_cufft(src_image, dst_image);
@@ -349,19 +348,36 @@ void Bm3d::denoise(uchar *src_image,
  */
 void Bm3d::denoise_fst_step() {
     //Block matching, each thread maps to a ref patch
-
+    do_block_matching();
     //gather patches, convert addresses to actual data
 
-    //perform 2d dct transform
+    arrange_block(d_noisy_image);
 
+    //perform 2d dct transform
+    // Stopwatch trans;
+    // trans.start();
+    // if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //     return;
+    // }
+    // trans.stop();
+    // printf("Transform takes %.5f\n", trans.getSeconds());
+
+    // transpose d_transformed_stacks to d_rearrange_stacks
+    rearrange_to_1D_layout();
     // perform 1d transform
 
     // hard thresholding
 
     // inverse 1d transform
 
+    // transpose d_rearrange_stacks back to d_transformed_stacks
+    rearrange_to_2D_layout();
     // inverse 2d transform
-
+    // if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //     return;
+    // }
     // aggregate to single image by writing into buffer
 }
 
@@ -461,82 +477,7 @@ void Bm3d::inspect_patch(uchar* src_image, float2* h_data, int width, int height
 }
 
 void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
-    Stopwatch init_time;
-    Stopwatch exec_time;
-    init_time.start();
-    int size = h_width * h_height;
-    int patch_size = h_fst_step_params.patch_size;
-    int group_size = h_fst_step_params.max_group_size;;
 
-    // cufftHandle plan_tmp;
-    // cufftHandle plan1D_tmp;
-    uchar *h_data;
-    uchar *d_data;
-    cudaMalloc(&d_data, sizeof(uchar) * size);
-
-    cudaMalloc(&h_data, sizeof(uchar) * size);
-    cudaMemcpy(h_data, src_image, sizeof(uchar) * size, cudaMemcpyHostToDevice);
-
-    cufftComplex *data;
-    cudaMalloc(&data, sizeof(cufftComplex) * size);
-    if (cudaGetLastError() != cudaSuccess) {
-        fprintf(stderr, "Cuda error: initialize error\n");
-        return;
-    }
-    init_time.stop();
-    exec_time.start();
-    // get input in shape
-    dim3 dimBlock(16,16);
-    dim3 dimGrid(h_width/16, h_height/16);
-    real2complex<<<dimGrid, dimBlock>>>(h_data, data);
-
-    // batch size 2D transform. cufft batch size should be determined at plan time
-    for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
-        if (cufftExecC2C(plan, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-
-    for (int i=0;i<size;i+=patch_size*patch_size*group_size*BATCH_1D) {
-        if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-
-    //hard filter
-    // hard_filter<<<dimGrid, dimBlock>>>(data);
-
-    for (int i=0;i<size;i+=patch_size*patch_size*group_size*BATCH_1D) {
-        if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-
-    // normalize cufft 1d transformation
-    normalize<<<dimGrid, dimBlock>>>(data, patch_size*patch_size*group_size);
-    for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
-        if (cufftExecC2C(plan, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-
-    complex2real<<<dimGrid, dimBlock>>>(data, d_data, patch_size*patch_size);
-
-    cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
-    if (cudaGetLastError() != cudaSuccess) {
-        fprintf(stderr, "Cuda error: Failed results copy\n");
-        return;
-    }
-    exec_time.stop();
-    printf("Init: %f\n", init_time.getSeconds());
-    printf("Exec: %f\n", exec_time.getSeconds());
-    for (int i=0;i<size;i++) {
-        printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
-    }
 }
 
 void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
@@ -618,8 +559,8 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     for (int y = 0; y < h_fst_step_params.patch_size; ++y) {
         for (int x = 0; x < h_fst_step_params.patch_size; ++x) {
             const int idx = idx2(
-                stack_x * h_fst_step_params.stripe + x, 
-                stack_y * h_fst_step_params.stripe + y, 
+                stack_x * h_fst_step_params.stripe + x,
+                stack_y * h_fst_step_params.stripe + y,
                 width);
             input_image[idx] = 0;
         }
@@ -654,16 +595,16 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
  *                  is a group. This kernel will put each group into an continuous array
  *                  of cufftComplex num with x component to be the value, y component to be 0.f
  */
-void Bm3d::arrange_block() {
+void Bm3d::arrange_block(uchar* input_data) {
     // input: Q* each struct is a patch with top left index
     // output: d_transformed_stacks, each patch got patch*patch size continuous chunk
     // each group will be assigned a thread
     int thread_per_block = 256;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
-    fill_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, precompute_patches, d_transformed_stacks);
+    fill_patch_major_from_source<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
 }
 
-void Bm3d::test_arrange_block() {
+void Bm3d::test_arrange_block(uchar *input_data) {
     int size = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches;
 
     Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);
@@ -671,17 +612,34 @@ void Bm3d::test_arrange_block() {
         test_q[i].position.x = i;
         test_q[i].position.y = 0;
     }
-    cufftComplex* h_transformed_stacks = (cufftComplex*)malloc(sizeof(cufftComplex) * size);
-
+    float* h_data = (float*)malloc(sizeof(float) * size);
+    float* d_data;
+    cudaMalloc(&d_data, sizeof(float) * size);
     cudaMemcpy(d_stacks, test_q, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyHostToDevice);
     uint* h_num_patches = (uint*)calloc(total_ref_patches, sizeof(uint));
     h_num_patches[0] = h_fst_step_params.max_group_size;
     h_num_patches[1] = h_fst_step_params.max_group_size - 2;
     cudaMemcpy(d_num_patches_in_stack, h_num_patches, sizeof(uint)*total_ref_patches, cudaMemcpyHostToDevice);
-    arrange_block();
-    cudaMemcpy(h_transformed_stacks, d_transformed_stacks, sizeof(cufftComplex) * size, cudaMemcpyDeviceToHost);
-    float2* h_data = (float2*)malloc(size*sizeof(float2));
-    cudaMemcpy(h_data, (float2*)precompute_patches, size * sizeof(float2), cudaMemcpyDeviceToHost);
+    arrange_block(d_noisy_image);
+
+    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
+
+    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
+    int threads_per_block = 512;
+    int num_blocks = (size + threads_per_block - 1) / threads_per_block;
+    complex2real<<<num_blocks, threads_per_block>>>(d_transformed_stacks, d_data, size, h_fst_step_params.patch_size*h_fst_step_params.patch_size);
+
+    cudaMemcpy(h_data, d_data, size * sizeof(float), cudaMemcpyDeviceToHost);
+    if (cudaGetLastError() != cudaSuccess) {
+        fprintf(stderr, "Cuda error: Failed results copy\n");
+        return;
+    }
     for (int i=0;i<2*h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size;i++) {
         int x = i/(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
         int y = 0;
@@ -689,12 +647,11 @@ void Bm3d::test_arrange_block() {
             printf("Patch (%d, %d)\n", x, 0);
         }
         int z = i - x*(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
-        int index = idx3(z, x, y, h_fst_step_params.patch_size*h_fst_step_params.patch_size, h_width);
-        printf("Transform: (%.3f, %.3f) vs Precompute: (%.3f, %.3f)\n",
-            h_transformed_stacks[i].x,
-            h_transformed_stacks[i].y,
-            h_data[index].x,
-            h_data[index].y);
+        int index = idx2(x+(z%h_fst_step_params.patch_size), y+(z/h_fst_step_params.patch_size), h_width);
+        printf("Transform: %.3f vs Original: %zu\n",
+            h_data[i],
+            input_data[index]
+            );
     }
 }
 
@@ -704,10 +661,24 @@ void Bm3d::test_arrange_block() {
  *              is a group. For each group of dim (width, height, num_patches), we will go
  *              through num_pathches first, then width then height.
  */
-void Bm3d::fetch_data() {
-    int thread_per_block = 256;
+void Bm3d::rearrange_to_1D_layout() {
+    Stopwatch fetch;
+    fetch.start();
+    int thread_per_block = 512;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
-    fetch_precompute_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, precompute_patches, d_rearrange_stacks);
+    fill_stack_major_data<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_rearrange_stacks);
+    fetch.stop();
+    printf("rearrange_to_1D_layout takes %.5f\n", fetch.getSeconds());
+}
+
+void Bm3d::rearrange_to_2D_layout() {
+    Stopwatch fetch;
+    fetch.start();
+    int thread_per_block = 512;
+    int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
+    fill_patch_major_from_1D_layout<<<num_blocks, thread_per_block>>>(d_rearrange_stacks, d_transformed_stacks);
+    fetch.stop();
+    printf("rearrange_to_2D_layout takes %.5f\n", fetch.getSeconds());
 }
 
 
@@ -716,40 +687,7 @@ void Bm3d::fetch_data() {
  *         as iterate through each patch in every group. We need to perform 1D DFT
  *         on the same pixel of every patch in the same group. We will use the stride.
  */
-void Bm3d::DFT1D() {
-    int size = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches;
 
-    Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);
-    for (int i=0;i<total_ref_patches * h_fst_step_params.max_group_size; i++) {
-        test_q[i].position.x = (i%h_fst_step_params.max_group_size);
-        test_q[i].position.y = ((i+1)%h_fst_step_params.max_group_size);
-    }
-    cufftComplex* h_transformed_stacks = (cufftComplex*)malloc(sizeof(cufftComplex) * size);
-
-    cudaMemcpy(d_stacks, test_q, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyHostToDevice);
-    uint* h_num_patches = (uint*)calloc(total_ref_patches, sizeof(uint));
-    for (int i=0;i<total_ref_patches;i++) {
-        h_num_patches[i] = h_fst_step_params.max_group_size;
-    }
-    cudaMemcpy(d_num_patches_in_stack, h_num_patches, sizeof(uint)*total_ref_patches, cudaMemcpyHostToDevice);
-    Stopwatch arrange;
-    arrange.start();
-    arrange_block();
-    arrange.stop();
-
-    Stopwatch trans;
-    trans.start();
-    int step_size = h_fst_step_params.max_group_size * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
-    int total_size = total_ref_patches * step_size;
-    for (int i=0; i<total_size; i+=step_size) {
-        if (cufftExecC2C(plan1D, d_transformed_stacks+i, d_transformed_stacks+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-    trans.stop();
-    printf("Arrange needs %.5f, 1D transform needs %.5f\n", arrange.getSeconds(), trans.getSeconds());
-}
 
 /*
  * do_block_matching - launch kernel to run block matching
@@ -758,11 +696,9 @@ void Bm3d::do_block_matching() {
     // determine how many threads we need to spawn
     Stopwatch bm_time;
     bm_time.start();
-    const int num_ref_patches_x = (h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1;
-    const int total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
     printf("total_ref_patches %d\n", total_ref_patches);
     const int total_num_threads = total_ref_patches;
-    const int threads_per_block = 512;
+    const int threads_per_block = 256;
     const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
     printf("total_num_threads %d num_block %d\n", total_ref_patches, num_blocks);
     block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
