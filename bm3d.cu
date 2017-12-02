@@ -152,7 +152,7 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
             d_rearrange_stacks[index].x = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x;
             d_rearrange_stacks[index].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y;
             if (group_id == 2 && z == 2) {
-                printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
+                printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y);
             }
         }
     }
