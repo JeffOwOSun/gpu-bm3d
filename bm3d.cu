@@ -107,31 +107,21 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
     int start = group_id*cu_const_params.max_group_size;
     int offset = start * patch_size * patch_size;
 
-    for (int z=0;z<cu_const_params.max_group_size;z++) {
-        if (z < d_num_patches_in_stack[group_id]) {
-            // fill in the actual data
-            uint patch_x = d_stacks[z+start].position.x;
-            uint patch_y = d_stacks[z+start].position.y;
-            for (int k=0;k<patch_size*patch_size;k++) {
-                int index = idx2(patch_x + (k%patch_size), patch_y + (k/patch_size), width);
-                int output_index = idx2(k, z, patch_size*patch_size)+offset;
-                if (group_id == 2 && z == 1) {
-                    printf("source1 (%d, %d, %d) : (%f, %f)\n", start, k%patch_size, k/patch_size, d_transformed_stacks[output_index].x, d_transformed_stacks[output_index].y);
-                    printf("trans: %d\n", output_index);
-                }
-                d_transformed_stacks[output_index].x = (float)(input_data[index]);
-                d_transformed_stacks[output_index].y = 0.0f;
-                if (group_id == 2 && z == 1) {
-                    printf("source2 (%d, %d, %d) : (%f, %f)\n", start, k%patch_size, k/patch_size, d_transformed_stacks[output_index].x, d_transformed_stacks[output_index].y);
-                    printf("trans: %d\n", output_index);
-                }
+    for (int z=0;z<d_num_patches_in_stack[group_id];z++) {
+        // fill in the actual data
+        uint patch_x = d_stacks[z+start].position.x;
+        uint patch_y = d_stacks[z+start].position.y;
+        for (int k=0;k<patch_size*patch_size;k++) {
+            int index = idx2(patch_x + (k%patch_size), patch_y + (k/patch_size), width);
+            int output_index = idx2(k, z, patch_size*patch_size)+offset;
+            if (d_transformed_stacks[output_index].x != 0) {
+                printf("trans: %d, %d <- %d\n", output_index, d_transformed_stacks[output_index].x, (float)(input_data[index])
             }
-        } else {
-            // fill 0s
-            for (int k=0;k<patch_size*patch_size;k++) {
-                int output_index = idx2(k, z, patch_size*patch_size)+offset;
-                d_transformed_stacks[output_index].x = 0.0f;
-                d_transformed_stacks[output_index].y = 0.0f;
+            d_transformed_stacks[output_index].x = (float)(input_data[index]);
+            d_transformed_stacks[output_index].y = 0.0f;
+            if (group_id == 2 && z == 1) {
+                printf("source2 (%d, %d, %d) : (%f, %f)\n", start, k%patch_size, k/patch_size, d_transformed_stacks[output_index].x, d_transformed_stacks[output_index].y);
+                printf("trans: %d\n", output_index);
             }
         }
     }
