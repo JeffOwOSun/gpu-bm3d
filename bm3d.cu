@@ -580,7 +580,7 @@ void Bm3d::arrange_block(uchar* input_data) {
     // each group will be assigned a thread
     Stopwatch arrange;
     arrange.start();
-    int thread_per_block = 256;
+    int thread_per_block = 512;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     fill_patch_major_from_source<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
     cudaDeviceSynchronize();
@@ -648,7 +648,7 @@ void Bm3d::test_arrange_block(uchar *input_data) {
 void Bm3d::rearrange_to_1D_layout() {
     Stopwatch fetch;
     fetch.start();
-    int thread_per_block = 256;
+    int thread_per_block = 512;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     fill_stack_major_data<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_rearrange_stacks);
     cudaDeviceSynchronize();
@@ -659,7 +659,7 @@ void Bm3d::rearrange_to_1D_layout() {
 void Bm3d::rearrange_to_2D_layout() {
     Stopwatch fetch;
     fetch.start();
-    int thread_per_block = 256;
+    int thread_per_block = 512;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     fill_patch_major_from_1D_layout<<<num_blocks, thread_per_block>>>(d_rearrange_stacks, d_transformed_stacks);
     cudaDeviceSynchronize();
