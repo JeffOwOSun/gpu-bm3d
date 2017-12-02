@@ -137,7 +137,6 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
     }
-    int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
     int patch_size = cu_const_params.patch_size;
 
     // start patch num
@@ -153,7 +152,7 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
             d_rearrange_stacks[idx2(k, z, patch_size*patch_size)].x = d_transformed_stacks[index].x;
             d_rearrange_stacks[idx2(k, z, patch_size*patch_size)].y = d_transformed_stacks[index].y;
             if (group_id == 2 && z == 2) {
-                printf("(%d, %d) : (%d, %d)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
+                printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
             }
         }
     }
@@ -164,7 +163,6 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
     }
-    int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
     int patch_size = cu_const_params.patch_size;
 
     // start patch num
@@ -180,7 +178,7 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
         d_transformed_stacks[index].x = d_rearrange_stacks[i].x;
         d_transformed_stacks[index].y = d_rearrange_stacks[i].y;
         if (group_id == 2 && z == 2) {
-            printf("(%d, %d) : (%d, %d)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
+            printf("to 1D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
         }
     }
 }
