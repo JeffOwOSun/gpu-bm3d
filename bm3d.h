@@ -105,7 +105,9 @@ public:
 
     void do_block_matching();
 
-    void fetch_data();
+    void rearrange_to_1D_layout();
+
+    void rearrange_to_2D_layout();
     /* data */
 };
 

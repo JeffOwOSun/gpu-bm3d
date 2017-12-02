@@ -95,7 +95,7 @@ __global__ void hard_filter(cufftComplex *data) {
 /*
  *  Each thread maps to a group, d_transformed_stacks is organized as (w, h, patch in group)
  */
-__global__ void fill_patch_major_data(Q* d_stacks, uint* d_num_patches_in_stack, uchar* input_data, cufftComplex* d_transformed_stacks) {
+__global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in_stack, uchar* input_data, cufftComplex* d_transformed_stacks) {
     int group_id = threadIdx.x + blockIdx.x * blockDim.x;
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
@@ -132,7 +132,7 @@ __global__ void fill_patch_major_data(Q* d_stacks, uint* d_num_patches_in_stack,
 /*
  *  Each thread maps to a group
  */
-__global__ void fetch_precompute_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComplex* precompute_patches, cufftComplex* d_rearrange_stacks) {
+__global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftComplex* d_rearrange_stacks) {
     int group_id = threadIdx.x + blockIdx.x * blockDim.x;
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
@@ -143,28 +143,44 @@ __global__ void fetch_precompute_data(Q* d_stacks, uint* d_num_patches_in_stack,
     // start patch num
     int start = group_id*cu_const_params.max_group_size;
     d_rearrange_stacks += start * patch_size * patch_size;
+    d_transformed_stacks += start * patch_size * patch_size;
 
-    for (int i=start;i<start+cu_const_params.max_group_size;i++) {
-        if (i - start < d_num_patches_in_stack[group_id]) {
-            uint patch_x = d_stacks[i].position.x;
-            uint patch_y = d_stacks[i].position.y;
-            for (int z=0;z<patch_size*patch_size;z++) {
-                int index = idx3(z, patch_x, patch_y, patch_size*patch_size, width);
-                int w = z % patch_size;
-                int h = z / patch_size;
-                int out_index = idx3(i-start, w, h, cu_const_params.max_group_size, patch_size);
-                d_rearrange_stacks[out_index].x = precompute_patches[index].x;
-                d_rearrange_stacks[out_index].y = precompute_patches[index].y;
+    for (int z=0;z<cu_const_params.max_group_size;z++) {
+        for (int k=0;k<patch_size*patch_size;k++) {
+            int w = k % patch_size;
+            int h = k / patch_size;
+            int index = idx3(z, w, h, cu_const_params.max_group_size, cu_const_params.max_group_size*patch_size);
+            d_rearrange_stacks[idx2(k, z, patch_size*patch_size)].x = d_transformed_stacks[index].x;
+            d_rearrange_stacks[idx2(k, z, patch_size*patch_size)].y = d_transformed_stacks[index].y;
+            if (group_id == 2 && z == 2) {
+                printf("(%d, %d) : (%d, %d)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
             }
-        } else {
-            // fill 0s
-            for (int z=0;z<patch_size*patch_size;z++) {
-                int w = z % patch_size;
-                int h = z / patch_size;
-                int out_index = idx3(i-start, w, h, cu_const_params.max_group_size, patch_size);
-                d_rearrange_stacks[out_index].x = 0.0f;
-                d_rearrange_stacks[out_index].y = 0.0f;
-            }
+        }
+    }
+}
+
+__global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks, cufftComplex* d_transformed_stacks) {
+    int group_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (group_id >= cu_const_params.total_ref_patches) {
+        return;
+    }
+    int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
+    int patch_size = cu_const_params.patch_size;
+
+    // start patch num
+    int start = group_id*cu_const_params.max_group_size;
+    d_rearrange_stacks += start * patch_size * patch_size;
+    d_transformed_stacks += start * patch_size * patch_size;
+
+    for (int i=0;i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
+        int z = i % cu_const_params.max_group_size;
+        int w = (i / cu_const_params.max_group_size) % patch_size;
+        int h = (i / (cu_const_params.max_group_size * patch_size));
+        int index = idx3(w, h, z, patch_size, patch_size*patch_size);
+        d_transformed_stacks[index].x = d_rearrange_stacks[i].x;
+        d_transformed_stacks[index].y = d_rearrange_stacks[i].y;
+        if (group_id == 2 && z == 2) {
+            printf("(%d, %d) : (%d, %d)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
         }
     }
 }
@@ -311,7 +327,6 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // precompute_2d_transform();
-    test_arrange_block(src_image);
     denoise_fst_step();
     // fetch_data();
     // test_fill_precompute_data(src_image);
@@ -333,26 +348,32 @@ void Bm3d::denoise_fst_step() {
     //gather patches, convert addresses to actual data
 
     arrange_block(d_noisy_image);
+
     //perform 2d dct transform
-    Stopwatch trans;
-    trans.start();
-    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-        return;
-    }
-    trans.stop();
-    printf("Transform takes %.5f\n", trans.getSeconds());
+    // Stopwatch trans;
+    // trans.start();
+    // if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //     return;
+    // }
+    // trans.stop();
+    // printf("Transform takes %.5f\n", trans.getSeconds());
+
+    // transpose d_transformed_stacks to d_rearrange_stacks
+    rearrange_to_1D_layout();
     // perform 1d transform
 
     // hard thresholding
 
     // inverse 1d transform
 
+    // transpose d_rearrange_stacks back to d_transformed_stacks
+    rearrange_to_2D_layout();
     // inverse 2d transform
-    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-        return;
-    }
+    // if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //     return;
+    // }
     // aggregate to single image by writing into buffer
 }
 
@@ -576,7 +597,7 @@ void Bm3d::arrange_block(uchar* input_data) {
     // each group will be assigned a thread
     int thread_per_block = 256;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
-    fill_patch_major_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
+    fill_patch_major_from_source<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
 }
 
 void Bm3d::test_arrange_block(uchar *input_data) {
@@ -636,14 +657,24 @@ void Bm3d::test_arrange_block(uchar *input_data) {
  *              is a group. For each group of dim (width, height, num_patches), we will go
  *              through num_pathches first, then width then height.
  */
-void Bm3d::fetch_data() {
+void Bm3d::rearrange_to_1D_layout() {
     Stopwatch fetch;
     fetch.start();
-    int thread_per_block = 256;
+    int thread_per_block = 512;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
-    fetch_precompute_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, precompute_patches, d_rearrange_stacks);
+    fill_stack_major_data<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_rearrange_stacks);
     fetch.stop();
-    printf("Fetching data needs %.5f\n", fetch.getSeconds());
+    printf("rearrange_to_1D_layout takes %.5f\n", fetch.getSeconds());
+}
+
+void Bm3d::rearrange_to_2D_layout() {
+    Stopwatch fetch;
+    fetch.start();
+    int thread_per_block = 512;
+    int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
+    fill_patch_major_from_1D_layout<<<num_blocks, thread_per_block>>>(d_rearrange_stacks, d_transformed_stacks);
+    fetch.stop();
+    printf("rearrange_to_2D_layout takes %.5f\n", fetch.getSeconds());
 }
 
 
