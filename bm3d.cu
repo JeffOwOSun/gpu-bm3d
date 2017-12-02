@@ -114,9 +114,6 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
         for (int k=0;k<patch_size*patch_size;k++) {
             int index = idx2(patch_x + (k%patch_size), patch_y + (k/patch_size), width);
             int output_index = idx2(k, z, patch_size*patch_size)+offset;
-            if (d_transformed_stacks[output_index].x != 0) {
-                printf("trans: %d, %d <- %d\n", output_index, d_transformed_stacks[output_index].x, (float)(input_data[index]);
-            }
             d_transformed_stacks[output_index].x = (float)(input_data[index]);
             d_transformed_stacks[output_index].y = 0.0f;
             if (group_id == 2 && z == 1) {
