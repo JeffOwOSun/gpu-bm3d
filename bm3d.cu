@@ -59,7 +59,7 @@ __global__ void real2complex(uchar* h_data, cufftComplex *output) {
 
 __global__ void complex2real(cufftComplex *data, float* output, int total_size, int trans_size) {
     int index = threadIdx.x + blockIdx.x * blockDim.x;
-    if (index < total_size) {
+    if (index >= total_size) {
         return;
     }
     output[index] = data[index].x / (float)(trans_size);
