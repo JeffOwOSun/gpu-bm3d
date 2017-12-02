@@ -99,7 +99,7 @@ public:
 
     void arrange_block(uchar*);
 
-    void test_arrange_block(uchar*);
+    void test_arrange_block();
 
     void DFT1D();
 

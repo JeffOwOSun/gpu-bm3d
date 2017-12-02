@@ -103,7 +103,7 @@ __global__ void fill_patch_major_data(Q* d_stacks, uint* d_num_patches_in_stack,
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
     }
-    int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
+    int width = cu_const_params.image_width;
     int patch_size = cu_const_params.patch_size;
 
     // start patch num
@@ -314,8 +314,8 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // precompute_2d_transform();
-    test_arrange_block(src_image);
-    denoise_fst_step(src_image);
+    test_arrange_block();
+    denoise_fst_step();
     // fetch_data();
     // test_fill_precompute_data(src_image);
     // first step
@@ -330,12 +330,12 @@ void Bm3d::denoise(uchar *src_image,
 /*
  * Perform the first step denoise
  */
-void Bm3d::denoise_fst_step(uchar* src_image) {
+void Bm3d::denoise_fst_step() {
     //Block matching, each thread maps to a ref patch
     do_block_matching();
     //gather patches, convert addresses to actual data
 
-    arrange_block(src_image);
+    arrange_block(d_noisy_image);
     //perform 2d dct transform
     Stopwatch trans;
     trans.start();
@@ -657,7 +657,7 @@ void Bm3d::arrange_block(uchar* input_data) {
     fill_patch_major_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
 }
 
-void Bm3d::test_arrange_block(uchar* input_data) {
+void Bm3d::test_arrange_block() {
     int size = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches;
 
     Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);
@@ -672,7 +672,7 @@ void Bm3d::test_arrange_block(uchar* input_data) {
     h_num_patches[0] = h_fst_step_params.max_group_size;
     h_num_patches[1] = h_fst_step_params.max_group_size - 2;
     cudaMemcpy(d_num_patches_in_stack, h_num_patches, sizeof(uint)*total_ref_patches, cudaMemcpyHostToDevice);
-    arrange_block(input_data);
+    arrange_block(d_noisy_image);
     cudaMemcpy(h_transformed_stacks, d_transformed_stacks, sizeof(cufftComplex) * size, cudaMemcpyDeviceToHost);
 
     for (int i=0;i<2*h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size;i++) {
