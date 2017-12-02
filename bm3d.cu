@@ -314,7 +314,7 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // precompute_2d_transform();
-    test_arrange_block();
+    test_arrange_block(src_image);
     denoise_fst_step();
     // fetch_data();
     // test_fill_precompute_data(src_image);
@@ -657,7 +657,7 @@ void Bm3d::arrange_block(uchar* input_data) {
     fill_patch_major_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
 }
 
-void Bm3d::test_arrange_block() {
+void Bm3d::test_arrange_block(uchar *input_data) {
     int size = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches;
 
     Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);

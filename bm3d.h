@@ -81,7 +81,7 @@ public:
                  int step,
                  int verbose);
 
-    void denoise_fst_step(uchar*);
+    void denoise_fst_step();
 
     void denoise_2nd_step();
 
@@ -99,7 +99,7 @@ public:
 
     void arrange_block(uchar*);
 
-    void test_arrange_block();
+    void test_arrange_block(uchar*);
 
     void DFT1D();
 
