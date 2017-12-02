@@ -117,7 +117,7 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
                 d_transformed_stacks->x = (float)(input_data[index]);
                 d_transformed_stacks->y = 0.0f;
                 if (group_id == 2 && (i-start) == 2) {
-                    printf("source (%d, %d) : (%f, %f)\n", z%patch_size, z/patch_size, h, d_transformed_stacks->x, d_transformed_stacks->y);
+                    printf("source (%d, %d) : (%f, %f)\n", z%patch_size, z/patch_size, d_transformed_stacks->x, d_transformed_stacks->y);
                 }
                 d_transformed_stacks++;
 
@@ -176,7 +176,7 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
 
     for (int i=0;i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
         int z = i % cu_const_params.max_group_size;
-        int w = (i / cu_const_params.max_group_size) % patch_size;
+        int w = (i - z) % patch_size;
         int h = (i / (cu_const_params.max_group_size * patch_size));
         int index = idx3(w, h, z, patch_size, patch_size*patch_size);
         d_transformed_stacks[index].x = d_rearrange_stacks[i].x;
