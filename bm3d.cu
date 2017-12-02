@@ -175,9 +175,10 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
     d_transformed_stacks += start * patch_size * patch_size;
 
     for (int i=0;i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
-        int z = i % cu_const_params.max_group_size;
-        int w = (i - z) % patch_size;
         int h = (i / (cu_const_params.max_group_size * patch_size));
+        int xz = i - h*cu_const_params.max_group_size * patch_size;
+        int w = xz / cu_const_params.max_group_size;
+        int z = xz % cu_const_params.max_group_size;
         int index = idx3(w, h, z, patch_size, patch_size*patch_size);
         d_transformed_stacks[index].x = d_rearrange_stacks[i].x;
         d_transformed_stacks[index].y = d_rearrange_stacks[i].y;
