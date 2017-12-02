@@ -13,7 +13,7 @@
 
 __device__ float get_pixel_in_stack(
     // the array
-    cufftComplex* d_transformed_stacks;
+    const cufftComplex* d_transformed_stacks,
     // dimensions
     const uint max_num_patches_in_stack,
     const uint patch_dim,
@@ -61,7 +61,7 @@ __global__ void aggregate(
         for (uint y = 0; y < patch_dim; ++y) {
             for (uint x = 0; x < patch_dim; ++x) {
                 // get the pixel value at this stack location
-                float pixel = get_pixel_in_stack(d_transformed_stacks, max_num_patches_in_stack, patch_dim, stack_id, z, y, x);
+                float pixel = get_pixel_in_stack(d_transformed_stacks, max_num_patches_in_stack, patch_dim, tid, z, y, x);
                 // write this value to the numerator
                 uint out_x = x + start_x;
                 uint out_y = y + start_y;
@@ -101,4 +101,33 @@ void Bm3d::do_aggregation(uchar *dst_image) {
     num_blocks = (num_pixels + num_threads_per_block - 1) / num_threads_per_block;
     reduction<<<num_blocks, num_threads_per_block>>>(d_numerator, d_denominator, d_denoised_image);
     cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
+}
+
+void Bm3d::test_aggregation(
+    uchar *src_image,
+    uint width,
+    uint height,
+    uchar *dst_image) {
+
+    // set environmental variables
+    h_width = width;
+    h_height = height;
+    h_channels = 1;
+    set_device_param(src_image);
+
+    // step 0: block matching
+    do_block_matching();
+    
+    // step 1: arrange the data into stacks of pixels
+    arrange_block(d_noisy_image);
+
+    // step 2: fill the weights with dummy values;
+    uint *weights = (uint*)malloc(total_ref_patches * sizeof(uint));
+    for (int i = 0; i < total_ref_patches; ++i) {
+        weights[i] = i % 32;
+    }
+    cudaMemcpy(d_weight, weights, sizeof(uint) * total_ref_patches, cudaMemcpyHostToDevice);
+    
+    // step 3: do aggregation
+    do_aggregation(dst_image);
 }

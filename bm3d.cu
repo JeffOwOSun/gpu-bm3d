@@ -7,6 +7,7 @@
 __constant__ GlobalConstants cu_const_params;
 
 #include "block_matching.cu_inl"
+#include "aggregation.cu_inl"
 
 float abspow2(cuComplex & a)
 {
@@ -514,20 +515,23 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
 
     // determine how many threads we need to spawn
     const int num_ref_patches_x = (h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1;
-    const int total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
-    printf("total_ref_patches %d\n", total_ref_patches);
-    const int total_num_threads = total_ref_patches;
-    const int threads_per_block = 256;
-    const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
-    printf("total_num_threads %d num_block %d\n", total_ref_patches, num_blocks);
 
-    // cudaError_t code = cudaGetLastError();
-    // if (code != cudaSuccess) {
-    //     fprintf(stderr, "Cuda error: %s\n", cudaGetErrorString(code));
-    //     return;
-    // }
-    // call our block matching magic
-    block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
+    // printf("total_ref_patches %d\n", total_ref_patches);
+    // const int total_num_threads = total_ref_patches;
+    // const int threads_per_block = 256;
+    // const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
+    // printf("total_num_threads %d num_block %d\n", total_ref_patches, num_blocks);
+
+    // // cudaError_t code = cudaGetLastError();
+    // // if (code != cudaSuccess) {
+    // //     fprintf(stderr, "Cuda error: %s\n", cudaGetErrorString(code));
+    // //     return;
+    // // }
+    // // call our block matching magic
+    // block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
+
+    do_block_matching();
+
     Q *h_stacks = (Q *)malloc(sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
     cudaMemcpy(h_stacks, d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyDeviceToHost);
     uint *h_num_patches_in_stack = (uint *)malloc(sizeof(uint) * total_ref_patches);
@@ -698,7 +702,7 @@ void Bm3d::do_block_matching() {
     bm_time.start();
     printf("total_ref_patches %d\n", total_ref_patches);
     const int total_num_threads = total_ref_patches;
-    const int threads_per_block = 256;
+    const int threads_per_block = 1024;
     const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
     printf("total_num_threads %d num_block %d\n", total_ref_patches, num_blocks);
     block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);

@@ -97,6 +97,8 @@ public:
 
     void test_block_matching(uchar *input_image, int width = 40, int height = 40);
 
+    void test_aggregation(uchar *src_image, uint width, uint height, uchar *dst_image);
+
     void arrange_block(uchar*);
 
     void test_arrange_block(uchar*);
@@ -104,6 +106,8 @@ public:
     void DFT1D();
 
     void do_block_matching();
+
+    void do_aggregation(uchar *dst_image);
 
     void rearrange_to_1D_layout();
 

@@ -103,7 +103,16 @@ int main(int argc, char** argv)
     image2 = image2.get_channel(0);
     image2.save(output_file.c_str());
 
+    // testing block_matching
     bm3d.test_block_matching(image.data(), image.width(), image.height());
-    image.save(output_file.c_str());
+    image.save("test_block_matching.png");
+
+    bm3d.test_aggregation(
+        image.data(), 
+        image.width(), 
+        image.height(),
+        image2.data()
+    );
+    image2.save(output_file.c_str());
     return 0;
 }
