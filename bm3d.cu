@@ -114,17 +114,19 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
             uint patch_y = d_stacks[i].position.y;
             for (int z=0;z<patch_size*patch_size;z++) {
                 int index = idx2(patch_x + (z%patch_size), patch_y + (z/patch_size), width);
-                d_transformed_stacks[idx2(z, i-start, patch_size*patch_size)+offset].x = (float)(input_data[index]);
-                d_transformed_stacks[idx2(z, i-start, patch_size*patch_size)+offset].y = 0.0f;
+                int output_index = idx2(z, i-start, patch_size*patch_size)+offset;
+                d_transformed_stacks[output_index].x = (float)(input_data[index]);
+                d_transformed_stacks[output_index].y = 0.0f;
                 if (group_id == 2 && (i-start) == 1) {
-                    printf("source (%d, %d) : (%f, %f)\n", z%patch_size, z/patch_size, d_transformed_stacks->x, d_transformed_stacks->y);
+                    printf("source (%d, %d) : (%f, %f)\n", z%patch_size, z/patch_size, d_transformed_stacks[output_index].x, d_transformed_stacks[output_index].y);
                 }
             }
         } else {
             // fill 0s
             for (int z=0;z<patch_size*patch_size;z++) {
-                d_transformed_stacks[idx2(z, i-start, patch_size*patch_size)+offset].x = 0.0f;
-                d_transformed_stacks[idx2(z, i-start, patch_size*patch_size)+offset].y = 0.0f;
+                int output_index = idx2(z, i-start, patch_size*patch_size)+offset;
+                d_transformed_stacks[output_index].x = 0.0f;
+                d_transformed_stacks[output_index].y = 0.0f;
             }
         }
     }
