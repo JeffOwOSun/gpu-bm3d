@@ -119,6 +119,7 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
                 d_transformed_stacks[output_index].y = 0.0f;
                 if (group_id == 2 && z == 1) {
                     printf("source (%d, %d) : (%f, %f)\n", k%patch_size, k/patch_size, d_transformed_stacks[output_index].x, d_transformed_stacks[output_index].y);
+                    printf("trans: %d\n", output_index);
                 }
             }
         } else {
