@@ -96,9 +96,9 @@ __global__ void hard_filter(cufftComplex *data) {
 }
 
 /*
- *  Each thread maps to a group
+ *  Each thread maps to a group, d_transformed_stacks is organized as (w, h, patch in group)
  */
-__global__ void fill_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComplex* precompute_patches, cufftComplex* d_transformed_stacks) {
+__global__ void fill_patch_major_data(Q* d_stacks, uint* d_num_patches_in_stack, uchar* input_data, cufftComplex* d_transformed_stacks) {
     int group_id = threadIdx.x + blockIdx.x * blockDim.x;
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
@@ -116,9 +116,9 @@ __global__ void fill_data(Q* d_stacks, uint* d_num_patches_in_stack, cufftComple
             uint patch_x = d_stacks[i].position.x;
             uint patch_y = d_stacks[i].position.y;
             for (int z=0;z<patch_size*patch_size;z++) {
-                int index = idx3(z, patch_x, patch_y, patch_size*patch_size, width);
-                d_transformed_stacks->x = precompute_patches[index].x;
-                d_transformed_stacks->y = precompute_patches[index].y;
+                int index = idx2(patch_x + (z%patch_size), patch_y + (z/patch_size), width);
+                d_transformed_stacks->x = (float)(input_data[index]);
+                d_transformed_stacks->y = 0.0f;
                 d_transformed_stacks++;
             }
         } else {
@@ -271,15 +271,15 @@ void Bm3d::set_device_param(uchar* src_image) {
     if(cufftPlanMany(&plan, 2, dim2D,
                      NULL, 1, 0,
                      NULL, 1, 0,
-                     CUFFT_C2C, BATCH_2D) != CUFFT_SUCCESS) {
+                     CUFFT_C2C, total_ref_patches*h_fst_step_params.max_group_size) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-    if(cufftPlan1d(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, BATCH_1D) != CUFFT_SUCCESS) {
+    int batch_size = total_ref_patches * h_fst_step_params.max_group_size * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
+    if(cufftPlan1d(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, batch_size) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-
 }
 
 /*
@@ -314,12 +314,11 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // precompute_2d_transform();
-    // do_block_matching();
+    denoise_fst_step(src_image);
     // fetch_data();
-    // arrange_block();
     // test_fill_precompute_data(src_image);
     // first step
-    test_cufft(src_image, dst_image);
+    // test_cufft(src_image, dst_image);
     // DFT1D();
     // second step
 
@@ -330,13 +329,20 @@ void Bm3d::denoise(uchar *src_image,
 /*
  * Perform the first step denoise
  */
-void Bm3d::denoise_fst_step() {
+void Bm3d::denoise_fst_step(uchar* src_image) {
     //Block matching, each thread maps to a ref patch
-
+    do_block_matching();
     //gather patches, convert addresses to actual data
-
+    arrange_block(src_image);
     //perform 2d dct transform
-
+    Stopwatch trans;
+    trans.start();
+    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
+    trans.stop();
+    printf("Transform takes %.5f\n", trans.getSeconds());
     // perform 1d transform
 
     // hard thresholding
@@ -344,7 +350,10 @@ void Bm3d::denoise_fst_step() {
     // inverse 1d transform
 
     // inverse 2d transform
-
+    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
     // aggregate to single image by writing into buffer
 }
 
@@ -481,24 +490,24 @@ void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
         }
     }
 
-    // for (int i=0;i<size;i+=group_size*BATCH_1D) {
-    //     if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-    //         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-    //         return;
-    //     }
-    // }
+    for (int i=0;i<size;i+=group_size*BATCH_1D) {
+        if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+            return;
+        }
+    }
 
-    // //hard filter
-    // // hard_filter<<<dimGrid, dimBlock>>>(data);
+    //hard filter
+    // hard_filter<<<dimGrid, dimBlock>>>(data);
 
-    // for (int i=0;i<size;i+=group_size*BATCH_1D) {
-    //     if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-    //         fprintf(stderr, "CUFFT error: ExecC2C CUFFT_INVERSE failed");
-    //         return;
-    //     }
-    // }
-    // // normalize cufft 1d transformation
-    // normalize<<<dimGrid, dimBlock>>>(data, group_size);
+    for (int i=0;i<size;i+=group_size*BATCH_1D) {
+        if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+            fprintf(stderr, "CUFFT error: ExecC2C CUFFT_INVERSE failed");
+            return;
+        }
+    }
+    // normalize cufft 1d transformation
+    normalize<<<dimGrid, dimBlock>>>(data, group_size);
 
     for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
         if (cufftExecC2C(plan, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
@@ -637,13 +646,13 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
  *                  is a group. This kernel will put each group into an continuous array
  *                  of cufftComplex num with x component to be the value, y component to be 0.f
  */
-void Bm3d::arrange_block() {
+void Bm3d::arrange_block(uchar* input_data) {
     // input: Q* each struct is a patch with top left index
     // output: d_transformed_stacks, each patch got patch*patch size continuous chunk
     // each group will be assigned a thread
     int thread_per_block = 256;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
-    fill_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, precompute_patches, d_transformed_stacks);
+    fill_patch_major_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
 }
 
 void Bm3d::test_arrange_block() {
@@ -694,7 +703,7 @@ void Bm3d::fetch_data() {
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     fetch_precompute_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, precompute_patches, d_rearrange_stacks);
     fetch.stop();
-    printf("Fectching data needs %.5f\n", fetch.getSeconds());
+    printf("Fetching data needs %.5f\n", fetch.getSeconds());
 }
 
 
@@ -703,40 +712,7 @@ void Bm3d::fetch_data() {
  *         as iterate through each patch in every group. We need to perform 1D DFT
  *         on the same pixel of every patch in the same group. We will use the stride.
  */
-void Bm3d::DFT1D() {
-    int size = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches;
 
-    Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);
-    for (int i=0;i<total_ref_patches * h_fst_step_params.max_group_size; i++) {
-        test_q[i].position.x = (i%h_fst_step_params.max_group_size);
-        test_q[i].position.y = ((i+1)%h_fst_step_params.max_group_size);
-    }
-    cufftComplex* h_transformed_stacks = (cufftComplex*)malloc(sizeof(cufftComplex) * size);
-
-    cudaMemcpy(d_stacks, test_q, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyHostToDevice);
-    uint* h_num_patches = (uint*)calloc(total_ref_patches, sizeof(uint));
-    for (int i=0;i<total_ref_patches;i++) {
-        h_num_patches[i] = h_fst_step_params.max_group_size;
-    }
-    cudaMemcpy(d_num_patches_in_stack, h_num_patches, sizeof(uint)*total_ref_patches, cudaMemcpyHostToDevice);
-    Stopwatch arrange;
-    arrange.start();
-    arrange_block();
-    arrange.stop();
-
-    Stopwatch trans;
-    trans.start();
-    int step_size = h_fst_step_params.max_group_size * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
-    int total_size = total_ref_patches * step_size;
-    for (int i=0; i<total_size; i+=step_size) {
-        if (cufftExecC2C(plan1D, d_transformed_stacks+i, d_transformed_stacks+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-    trans.stop();
-    printf("Arrange needs %.5f, 1D transform needs %.5f\n", arrange.getSeconds(), trans.getSeconds());
-}
 
 /*
  * do_block_matching - launch kernel to run block matching

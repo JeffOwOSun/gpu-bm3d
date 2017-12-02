@@ -19,8 +19,8 @@
 
 #define idx2(x,y,dim_x) ( (x) + ((y)*(dim_x)) )
 #define idx3(x,y,z,dim_x,dim_y) ( (x) + ((y)*(dim_x)) + ((z)*(dim_x)*(dim_y)) )
-#define BATCH_2D 250
-#define BATCH_1D 133
+#define BATCH_2D 512
+#define BATCH_1D 512
 
 class Bm3d
 {
@@ -81,7 +81,7 @@ public:
                  int step,
                  int verbose);
 
-    void denoise_fst_step();
+    void denoise_fst_step(uchar*);
 
     void denoise_2nd_step();
 
@@ -97,7 +97,7 @@ public:
 
     void test_block_matching(uchar *input_image, int width = 40, int height = 40);
 
-    void arrange_block();
+    void arrange_block(uchar*);
 
     void test_arrange_block();
 
