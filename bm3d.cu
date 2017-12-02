@@ -314,6 +314,7 @@ void Bm3d::denoise(uchar *src_image,
     h_channels = channels;
     set_device_param(src_image);
     // precompute_2d_transform();
+    test_arrange_block(src_image);
     denoise_fst_step(src_image);
     // fetch_data();
     // test_fill_precompute_data(src_image);
@@ -333,6 +334,7 @@ void Bm3d::denoise_fst_step(uchar* src_image) {
     //Block matching, each thread maps to a ref patch
     do_block_matching();
     //gather patches, convert addresses to actual data
+
     arrange_block(src_image);
     //perform 2d dct transform
     Stopwatch trans;
@@ -655,7 +657,7 @@ void Bm3d::arrange_block(uchar* input_data) {
     fill_patch_major_data<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
 }
 
-void Bm3d::test_arrange_block() {
+void Bm3d::test_arrange_block(uchar* input_data) {
     int size = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches;
 
     Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);
@@ -670,10 +672,9 @@ void Bm3d::test_arrange_block() {
     h_num_patches[0] = h_fst_step_params.max_group_size;
     h_num_patches[1] = h_fst_step_params.max_group_size - 2;
     cudaMemcpy(d_num_patches_in_stack, h_num_patches, sizeof(uint)*total_ref_patches, cudaMemcpyHostToDevice);
-    arrange_block();
+    arrange_block(input_data);
     cudaMemcpy(h_transformed_stacks, d_transformed_stacks, sizeof(cufftComplex) * size, cudaMemcpyDeviceToHost);
-    float2* h_data = (float2*)malloc(size*sizeof(float2));
-    cudaMemcpy(h_data, (float2*)precompute_patches, size * sizeof(float2), cudaMemcpyDeviceToHost);
+
     for (int i=0;i<2*h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size;i++) {
         int x = i/(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
         int y = 0;
@@ -681,12 +682,12 @@ void Bm3d::test_arrange_block() {
             printf("Patch (%d, %d)\n", x, 0);
         }
         int z = i - x*(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
-        int index = idx3(z, x, y, h_fst_step_params.patch_size*h_fst_step_params.patch_size, h_width);
-        printf("Transform: (%.3f, %.3f) vs Precompute: (%.3f, %.3f)\n",
+        int index = idx2(x+(z%h_fst_step_params.patch_size), y+(z/h_fst_step_params.patch_size), h_width);
+        printf("Transform: (%.3f, %.3f) vs Original: (%zu, %zu)\n",
             h_transformed_stacks[i].x,
             h_transformed_stacks[i].y,
             h_data[index].x,
-            h_data[index].y);
+            0);
     }
 }
 
