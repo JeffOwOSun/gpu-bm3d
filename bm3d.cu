@@ -145,16 +145,15 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
 
     // start patch num
     int start = group_id*cu_const_params.max_group_size;
-    d_rearrange_stacks += start * patch_size * patch_size;
-    d_transformed_stacks += start * patch_size * patch_size;
+    int offset = start * patch_size * patch_size;
 
     for (int z=0;z<cu_const_params.max_group_size;z++) {
         for (int k=0;k<patch_size*patch_size;k++) {
             int w = k % patch_size;
             int h = k / patch_size;
-            int index = idx3(z, w, h, cu_const_params.max_group_size, cu_const_params.max_group_size*patch_size);
-            d_rearrange_stacks[index].x = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x;
-            d_rearrange_stacks[index].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y;
+            int index = z + w * cu_const_params.max_group_size + h * cu_const_params.max_group_size*patch_size);
+            d_rearrange_stacks[index + offset].x = d_transformed_stacks[idx2(k, z, patch_size*patch_size) + offset].x;
+            d_rearrange_stacks[index + offset].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size) + offset].y;
             if (group_id == 0 && z == 0) {
                 printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y);
                 printf("trans: %d, rearrage: %d\n", idx2(k, z, patch_size*patch_size), index);
@@ -172,8 +171,7 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
 
     // start patch num
     int start = group_id*cu_const_params.max_group_size;
-    d_rearrange_stacks += start * patch_size * patch_size;
-    d_transformed_stacks += start * patch_size * patch_size;
+    int offset = start * patch_size * patch_size;
 
     for (int i=0;i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
         int h = (i / (cu_const_params.max_group_size * patch_size));
@@ -181,8 +179,8 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
         int w = xz / cu_const_params.max_group_size;
         int z = xz % cu_const_params.max_group_size;
         int index = idx3(w, h, z, patch_size, patch_size*patch_size);
-        d_transformed_stacks[index].x = d_rearrange_stacks[i].x;
-        d_transformed_stacks[index].y = d_rearrange_stacks[i].y;
+        d_transformed_stacks[index+offset].x = d_rearrange_stacks[i+offset].x;
+        d_transformed_stacks[index+offset].y = d_rearrange_stacks[i+offset].y;
         if (group_id == 0 && z == 0) {
             printf("to 1D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
             printf("trans: %d, rearrage: %d\n", index, i);
