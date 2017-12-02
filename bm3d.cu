@@ -686,7 +686,7 @@ void Bm3d::test_arrange_block(uchar* input_data) {
         printf("Transform: (%.3f, %.3f) vs Original: (%zu, %zu)\n",
             h_transformed_stacks[i].x,
             h_transformed_stacks[i].y,
-            h_data[index].x,
+            input_data[index],
             0);
     }
 }
