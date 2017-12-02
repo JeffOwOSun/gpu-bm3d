@@ -149,8 +149,8 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
             int w = k % patch_size;
             int h = k / patch_size;
             int index = idx3(z, w, h, cu_const_params.max_group_size, cu_const_params.max_group_size*patch_size);
-            d_rearrange_stacks[idx2(k, z, patch_size*patch_size)].x = d_transformed_stacks[index].x;
-            d_rearrange_stacks[idx2(k, z, patch_size*patch_size)].y = d_transformed_stacks[index].y;
+            d_rearrange_stacks[index].x = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x;
+            d_rearrange_stacks[index].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y;
             if (group_id == 2 && z == 2) {
                 printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
             }
