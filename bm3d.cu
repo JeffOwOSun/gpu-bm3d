@@ -116,9 +116,9 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
                 int index = idx2(patch_x + (z%patch_size), patch_y + (z/patch_size), width);
                 d_transformed_stacks->x = (float)(input_data[index]);
                 d_transformed_stacks->y = 0.0f;
-                // if (group_id == 2 && (i-start) == 2) {
-                //     printf("source (%d, %d) : (%f, %f)\n", z%patch_size, z/patch_size, d_transformed_stacks->x, d_transformed_stacks->y);
-                // }
+                if (group_id == 0 && (i-start) == 0) {
+                    printf("source (%d, %d) : (%f, %f)\n", z%patch_size, z/patch_size, d_transformed_stacks->x, d_transformed_stacks->y);
+                }
                 d_transformed_stacks++;
 
             }
@@ -155,7 +155,7 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
             int index = idx3(z, w, h, cu_const_params.max_group_size, cu_const_params.max_group_size*patch_size);
             d_rearrange_stacks[index].x = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x;
             d_rearrange_stacks[index].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y;
-            if (group_id == 2 && z == 2) {
+            if (group_id == 0 && z == 0) {
                 printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y);
             }
         }
@@ -182,7 +182,7 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
         int index = idx3(w, h, z, patch_size, patch_size*patch_size);
         d_transformed_stacks[index].x = d_rearrange_stacks[i].x;
         d_transformed_stacks[index].y = d_rearrange_stacks[i].y;
-        if (group_id == 2 && z == 2) {
+        if (group_id == 0 && z == 0) {
             printf("to 1D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
         }
     }
@@ -359,7 +359,6 @@ void Bm3d::denoise_fst_step() {
         fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
         return;
     }
-    cudaDeviceSynchronize();
     trans.stop();
     printf("Transform takes %.5f\n", trans.getSeconds());
 
