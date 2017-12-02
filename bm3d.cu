@@ -113,9 +113,9 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
         uint patch_y = d_stacks[z+start].position.y;
         for (int k=0;k<patch_size*patch_size;k++) {
             int index = idx2(patch_x + (k%patch_size), patch_y + (k/patch_size), width);
-            int output_index = idx2(k, z, patch_size*patch_size)+offset;
-            d_transformed_stacks[output_index].x = (float)(input_data[index]);
-            d_transformed_stacks[output_index].y = 0.0f;
+            int output_index = idx2(k, z, patch_size*patch_size);
+            d_transformed_stacks[output_index+offset].x = (float)(input_data[index]);
+            d_transformed_stacks[output_index+offset].y = 0.0f;
             if (group_id == 2 && z == 1) {
                 printf("source2 (%d, %d, %d) : (%f, %f)\n", start, k%patch_size, k/patch_size, d_transformed_stacks[output_index].x, d_transformed_stacks[output_index].y);
                 printf("trans: %d\n", output_index);
@@ -142,12 +142,13 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
         for (int k=0;k<patch_size*patch_size;k++) {
             int w = k % patch_size;
             int h = k / patch_size;
-            int index = idx3(z, w, h, cu_const_params.max_group_size, patch_size);
-            d_rearrange_stacks[index + offset].x = d_transformed_stacks[idx2(k, z, patch_size*patch_size) + offset].x;
-            d_rearrange_stacks[index + offset].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size) + offset].y;
+            int output_index = idx3(z, w, h, cu_const_params.max_group_size, patch_size);
+            int index = idx2(k, z, patch_size*patch_size);
+            d_rearrange_stacks[output_index + offset].x = d_transformed_stacks[index + offset].x;
+            d_rearrange_stacks[output_index + offset].y = d_transformed_stacks[index + offset].y;
             if (group_id == 2 && z == 1) {
                 printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index + offset].x, d_transformed_stacks[index + offset].y);
-                printf("trans: %d, rearrage: %d\n", idx2(k, z, patch_size*patch_size) + offset, index);
+                printf("trans: %d, rearrage: %d\n", index, output_index);
             }
         }
     }
