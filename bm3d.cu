@@ -119,7 +119,7 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
                 d_transformed_stacks[output_index].y = 0.0f;
                 if (group_id == 2 && z == 1) {
                     printf("source (%d, %d, %d) : (%f, %f)\n", start, k%patch_size, k/patch_size, d_transformed_stacks[output_index].x, d_transformed_stacks[output_index].y);
-                    printf("trans: %d\n", output_index);
+                    printf("trans: %d\n", output_index));
                 }
             }
         } else {
@@ -156,7 +156,7 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
             d_rearrange_stacks[index + offset].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size) + offset].y;
             if (group_id == 2 && z == 1) {
                 printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y);
-                printf("trans: %d, rearrage: %d\n", idx2(k, z, patch_size*patch_size), index);
+                printf("trans: %d, rearrage: %d\n", idx2(k, z, patch_size*patch_size) + offset, index);
             }
         }
     }
