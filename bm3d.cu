@@ -151,14 +151,12 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
         for (int k=0;k<patch_size*patch_size;k++) {
             int w = k % patch_size;
             int h = k / patch_size;
-            int index2 = idx3(z, w, h, cu_const_params.max_group_size, cu_const_params.max_group_size*patch_size);
-            int index = z + w * cu_const_params.max_group_size + h * cu_const_params.max_group_size*patch_size;
+            int index = idx3(z, w, h, cu_const_params.max_group_size, patch_size);
             d_rearrange_stacks[index + offset].x = d_transformed_stacks[idx2(k, z, patch_size*patch_size) + offset].x;
             d_rearrange_stacks[index + offset].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size) + offset].y;
-            if (group_id == 0 && z == 0) {
+            if (group_id == 2 && z == 1) {
                 printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y);
                 printf("trans: %d, rearrage: %d\n", idx2(k, z, patch_size*patch_size), index);
-                printf("index : %d, index2 : %d\n", index, index2);
             }
         }
     }
@@ -180,10 +178,10 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
         int xz = i - h*cu_const_params.max_group_size * patch_size;
         int w = xz / cu_const_params.max_group_size;
         int z = xz % cu_const_params.max_group_size;
-        int index = idx3(w, h, z, patch_size, patch_size*patch_size);
+        int index = idx3(w, h, z, patch_size, patch_size);
         d_transformed_stacks[index+offset].x = d_rearrange_stacks[i+offset].x;
         d_transformed_stacks[index+offset].y = d_rearrange_stacks[i+offset].y;
-        if (group_id == 0 && z == 0) {
+        if (group_id == 2 && z == 1) {
             printf("to 1D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
             printf("trans: %d, rearrage: %d\n", index, i);
         }
