@@ -157,6 +157,7 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
             d_rearrange_stacks[index].y = d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y;
             if (group_id == 0 && z == 0) {
                 printf("to 2D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].x, d_transformed_stacks[idx2(k, z, patch_size*patch_size)].y);
+                printf("trans: %d, rearrage: %d\n", idx2(k, z, patch_size*patch_size), index);
             }
         }
     }
@@ -184,6 +185,7 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
         d_transformed_stacks[index].y = d_rearrange_stacks[i].y;
         if (group_id == 0 && z == 0) {
             printf("to 1D (%d, %d) : (%f, %f)\n", w, h, d_transformed_stacks[index].x, d_transformed_stacks[index].y);
+            printf("trans: %d, rearrage: %d\n", index, i);
         }
     }
 }
@@ -668,9 +670,10 @@ void Bm3d::test_arrange_block(uchar *input_data) {
 void Bm3d::rearrange_to_1D_layout() {
     Stopwatch fetch;
     fetch.start();
-    int thread_per_block = 512;
+    int thread_per_block = 256;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     fill_stack_major_data<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_rearrange_stacks);
+    cudaDeviceSynchronize();
     fetch.stop();
     printf("rearrange_to_1D_layout takes %.5f\n", fetch.getSeconds());
 }
@@ -678,9 +681,10 @@ void Bm3d::rearrange_to_1D_layout() {
 void Bm3d::rearrange_to_2D_layout() {
     Stopwatch fetch;
     fetch.start();
-    int thread_per_block = 512;
+    int thread_per_block = 256;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     fill_patch_major_from_1D_layout<<<num_blocks, thread_per_block>>>(d_rearrange_stacks, d_transformed_stacks);
+    cudaDeviceSynchronize();
     fetch.stop();
     printf("rearrange_to_2D_layout takes %.5f\n", fetch.getSeconds());
 }
