@@ -116,9 +116,9 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
                 int index = idx2(patch_x + (z%patch_size), patch_y + (z/patch_size), width);
                 d_transformed_stacks->x = (float)(input_data[index]);
                 d_transformed_stacks->y = 0.0f;
-                if (group_id == 2 && (i-start) == 2) {
-                    printf("source (%d, %d) : (%f, %f)\n", z%patch_size, z/patch_size, d_transformed_stacks->x, d_transformed_stacks->y);
-                }
+                // if (group_id == 2 && (i-start) == 2) {
+                //     printf("source (%d, %d) : (%f, %f)\n", z%patch_size, z/patch_size, d_transformed_stacks->x, d_transformed_stacks->y);
+                // }
                 d_transformed_stacks++;
 
             }
@@ -599,9 +599,14 @@ void Bm3d::arrange_block(uchar* input_data) {
     // input: Q* each struct is a patch with top left index
     // output: d_transformed_stacks, each patch got patch*patch size continuous chunk
     // each group will be assigned a thread
+    Stopwatch arrange;
+    arrange.start();
     int thread_per_block = 256;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     fill_patch_major_from_source<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
+    cudaDeviceSynchronize();
+    arrange.stop();
+    printf("Arrange block takes %f\n", arrange.getSeconds());
 }
 
 void Bm3d::test_arrange_block(uchar *input_data) {
