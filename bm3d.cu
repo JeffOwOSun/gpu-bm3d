@@ -353,17 +353,17 @@ void Bm3d::denoise_fst_step() {
     arrange_block(d_noisy_image);
 
     //perform 2d dct transform
-    Stopwatch trans;
-    trans.start();
-    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-        return;
-    }
-    trans.stop();
-    printf("Transform takes %.5f\n", trans.getSeconds());
+    // Stopwatch trans;
+    // trans.start();
+    // if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+    //     return;
+    // }
+    // trans.stop();
+    // printf("Transform takes %.5f\n", trans.getSeconds());
 
     // transpose d_transformed_stacks to d_rearrange_stacks
-    // rearrange_to_1D_layout();
+    rearrange_to_1D_layout();
     // perform 1d transform
 
     // hard thresholding
@@ -371,7 +371,7 @@ void Bm3d::denoise_fst_step() {
     // inverse 1d transform
 
     // transpose d_rearrange_stacks back to d_transformed_stacks
-    // rearrange_to_2D_layout();
+    rearrange_to_2D_layout();
     // inverse 2d transform
     // if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
     //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
