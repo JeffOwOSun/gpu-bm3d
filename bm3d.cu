@@ -57,15 +57,12 @@ __global__ void real2complex(uchar* h_data, cufftComplex *output) {
     }
 }
 
-__global__ void complex2real(cufftComplex *data, uchar* output, int size) {
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
-    int j = threadIdx.y + blockIdx.y*blockDim.y;
-    int index = j*cu_const_params.image_width + i;
-
-    if (i<cu_const_params.image_width && j<cu_const_params.image_height) {
-        output[index] = data[index].x / (float)(size);
-
+__global__ void complex2real(cufftComplex *data, float* output, int total_size, int trans_size) {
+    int index = threadIdx.x + blockIdx.x * blockDim.x;
+    if (index < total_size) {
+        return;
     }
+    output[index] = data[index].x / (float)(trans_size);
 }
 
 /*
@@ -455,82 +452,7 @@ void Bm3d::inspect_patch(uchar* src_image, float2* h_data, int width, int height
 }
 
 void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
-    Stopwatch init_time;
-    Stopwatch exec_time;
-    init_time.start();
-    int size = h_width * h_height;
-    int patch_size = h_fst_step_params.patch_size;
-    int group_size = h_fst_step_params.max_group_size;;
 
-    // cufftHandle plan_tmp;
-    // cufftHandle plan1D_tmp;
-    uchar *h_data;
-    uchar *d_data;
-    cudaMalloc(&d_data, sizeof(uchar) * size);
-
-    cudaMalloc(&h_data, sizeof(uchar) * size);
-    cudaMemcpy(h_data, src_image, sizeof(uchar) * size, cudaMemcpyHostToDevice);
-
-    cufftComplex *data;
-    cudaMalloc(&data, sizeof(cufftComplex) * size);
-    if (cudaGetLastError() != cudaSuccess) {
-        fprintf(stderr, "Cuda error: initialize error\n");
-        return;
-    }
-    init_time.stop();
-    exec_time.start();
-    // get input in shape
-    dim3 dimBlock(16,16);
-    dim3 dimGrid(h_width/16, h_height/16);
-    real2complex<<<dimGrid, dimBlock>>>(h_data, data);
-
-    // batch size 2D transform. cufft batch size should be determined at plan time
-    for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
-        if (cufftExecC2C(plan, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-
-    for (int i=0;i<size;i+=group_size*BATCH_1D) {
-        if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-
-    //hard filter
-    // hard_filter<<<dimGrid, dimBlock>>>(data);
-
-    for (int i=0;i<size;i+=group_size*BATCH_1D) {
-        if (cufftExecC2C(plan1D, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecC2C CUFFT_INVERSE failed");
-            return;
-        }
-    }
-    // normalize cufft 1d transformation
-    normalize<<<dimGrid, dimBlock>>>(data, group_size);
-
-    for (int i=0;i<size;i+=patch_size*patch_size*BATCH_2D) {
-        if (cufftExecC2C(plan, data+i, data+i, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecC2C CUFFT_INVERSE failed");
-            return;
-        }
-    }
-
-    complex2real<<<dimGrid, dimBlock>>>(data, d_data, patch_size*patch_size);
-
-    cudaMemcpy(dst_image, d_data, size * sizeof(uchar), cudaMemcpyDeviceToHost);
-    if (cudaGetLastError() != cudaSuccess) {
-        fprintf(stderr, "Cuda error: Failed results copy\n");
-        return;
-    }
-    exec_time.stop();
-    printf("Init: %f\n", init_time.getSeconds());
-    printf("Exec: %f\n", exec_time.getSeconds());
-    for (int i=0;i<size;i++) {
-        printf("%d: (%zu, %zu)\n", i, src_image[i], dst_image[i]);
-    }
 }
 
 void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
@@ -665,7 +587,7 @@ void Bm3d::test_arrange_block(uchar *input_data) {
         test_q[i].position.x = i;
         test_q[i].position.y = 0;
     }
-    cufftComplex* h_transformed_stacks = (cufftComplex*)malloc(sizeof(cufftComplex) * size);
+    float* h_data = (float*)malloc(sizeof(float) * size);
 
     cudaMemcpy(d_stacks, test_q, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyHostToDevice);
     uint* h_num_patches = (uint*)calloc(total_ref_patches, sizeof(uint));
@@ -679,8 +601,19 @@ void Bm3d::test_arrange_block(uchar *input_data) {
         return;
     }
 
-    cudaMemcpy(h_transformed_stacks, d_transformed_stacks, sizeof(cufftComplex) * size, cudaMemcpyDeviceToHost);
+    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
+    int threads_per_block = 512;
+    int num_blocks = (size + threads_per_block - 1) / threads_per_block;
+    complex2real<<<num_blocks, threads_per_block>>>(d_transformed_stacks, d_data, size, h_fst_step_params.patch_size*h_fst_step_params.patch_size);
 
+    cudaMemcpy(h_data, d_data, size * sizeof(float), cudaMemcpyDeviceToHost);
+    if (cudaGetLastError() != cudaSuccess) {
+        fprintf(stderr, "Cuda error: Failed results copy\n");
+        return;
+    }
     for (int i=0;i<2*h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size;i++) {
         int x = i/(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
         int y = 0;
@@ -689,11 +622,10 @@ void Bm3d::test_arrange_block(uchar *input_data) {
         }
         int z = i - x*(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
         int index = idx2(x+(z%h_fst_step_params.patch_size), y+(z/h_fst_step_params.patch_size), h_width);
-        printf("Transform: (%.3f, %.3f) vs Original: (%zu, %zu)\n",
-            h_transformed_stacks[i].x,
-            h_transformed_stacks[i].y,
-            input_data[index],
-            0);
+        printf("Transform: %.3f vs Original: %zu\n",
+            h_data[i],
+            input_data[index]
+            );
     }
 }
 
