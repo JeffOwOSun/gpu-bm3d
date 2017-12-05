@@ -39,7 +39,7 @@ __device__ float get_pixel_in_stack(
 __global__ void aggregate(
     const Q *g_stacks, //IN: Size [num_ref * max_num_patches_in_stack]
     const uint *g_num_patches_in_stack, //IN: Size [num_ref]
-    const uint *g_num_nonzero_coefk, //IN: Size [num_ref]
+    const float *g_num_nonzero_coeff, //IN: Size [num_ref]
     const cufftComplex* d_transformed_stacks,
     float *numerator, //OUT: numerator of image size
     uint *denominator //OUT: denominator of image size
@@ -53,7 +53,7 @@ __global__ void aggregate(
     const uint tid = blockIdx.x * blockDim.x + threadIdx.x;
     const Q* const my_stack = &g_stacks[tid * max_num_patches_in_stack];
 
-    const uint my_weight = denominator[tid];
+    const uint my_weight = g_num_nonzero_coeff[tid];
 
     for (uint z = 0; z < g_num_patches_in_stack[tid]; ++z) {
         const uint start_x = my_stack[z].position.x ;
@@ -84,6 +84,8 @@ __global__ void reduction(
 }
 
 void Bm3d::do_aggregation(uchar *dst_image) {
+    Stopwatch ag_time;
+    ag_time.start();
     const uint num_threads_per_block = 512;
     // step 1: do aggregation, one thread per stack
     uint num_blocks = (total_ref_patches + num_threads_per_block - 1) / num_threads_per_block;
@@ -100,6 +102,9 @@ void Bm3d::do_aggregation(uchar *dst_image) {
     const uint num_pixels = h_width * h_height;
     num_blocks = (num_pixels + num_threads_per_block - 1) / num_threads_per_block;
     reduction<<<num_blocks, num_threads_per_block>>>(d_numerator, d_denominator, d_denoised_image);
+    cudaDeviceSynchronize();
+    ag_time.stop();
+    printf("Aggregation: %f\n", ag_time.getSeconds());
     cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
 }
 
@@ -122,11 +127,11 @@ void Bm3d::test_aggregation(
     arrange_block(d_noisy_image);
 
     // step 2: fill the weights with dummy values;
-    uint *weights = (uint*)malloc(total_ref_patches * sizeof(uint));
+    float *weights = (float*)malloc(total_ref_patches * sizeof(float));
     for (int i = 0; i < total_ref_patches; ++i) {
-        weights[i] = i % 32;
+        weights[i] = i % 32 + 1;
     }
-    cudaMemcpy(d_weight, weights, sizeof(uint) * total_ref_patches, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_weight, weights, sizeof(float) * total_ref_patches, cudaMemcpyHostToDevice);
     
     // step 3: do aggregation
     do_aggregation(dst_image);
