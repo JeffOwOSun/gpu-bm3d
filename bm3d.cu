@@ -288,20 +288,6 @@ void Bm3d::set_device_param(uchar* src_image) {
     params.total_ref_patches = total_ref_patches;
 
     cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
-    int dim2D[2] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size};
-    // create cufft transform plan
-    if(cufftPlanMany(&plan, 2, dim2D,
-                     NULL, 1, 0,
-                     NULL, 1, 0,
-                     CUFFT_C2C, total_ref_patches*h_fst_step_params.max_group_size) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT Plan error: Plan failed");
-        return;
-    }
-    int batch_size = total_ref_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
-    if(cufftPlan1d(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, batch_size) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT Plan error: Plan failed");
-        return;
-    }
     int dim3D[3] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size, h_fst_step_params.max_group_size};
     int size_3d = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size;
     if(cufftPlanMany(&plan3D, 3, dim3D,
@@ -383,44 +369,20 @@ void Bm3d::denoise_fst_step() {
 
     // perform 3D dct transform;
 
-    // if (cufftExecC2C(plan3D, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-    //     fprintf(stderr, "CUFFT error: 3D Forward failed");
-    //     return;
-    // }
-
-    //perform 2d dct transform
-    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: 2D Forward failed");
+    if (cufftExecC2C(plan3D, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: 3D Forward failed");
         return;
     }
 
-    // transpose d_transformed_stacks to d_rearrange_stacks
-    rearrange_to_1D_layout();
-    // perform 1d transform
-    if (cufftExecC2C(plan1D, d_rearrange_stacks, d_rearrange_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: 1D Forward failed");
-        return;
-    }
     // hard thresholding and normalize
     hard_threshold();
-    // inverse 1d transform
-    if (cufftExecC2C(plan1D, d_rearrange_stacks, d_rearrange_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: 1D backword failed");
-        return;
-    }
-    // transpose d_rearrange_stacks back to d_transformed_stacks
-    rearrange_to_2D_layout();
-    // inverse 2d transform
-    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C backword failed");
-        return;
-    }
 
-    // if (cufftExecC2C(plan3D, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-    //     fprintf(stderr, "CUFFT error: 3D inverse failed");
-    //     return;
-    // }
-    // Need to normalize 2D inverse result by dividing patch_size * patch_size
+    // perform inverse 3D dct transform;
+    if (cufftExecC2C(plan3D, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: 3D inverse failed");
+        return;
+    }
+    // Need to normalize 3D inverse result by dividing patch_size * patch_size
     // aggregate to single image by writing into buffer
 }
 
@@ -764,7 +726,7 @@ void Bm3d::hard_threshold() {
     hard_threshold.start();
     int thread_per_block = 512;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
-    hard_filter<<<num_blocks, thread_per_block>>>(d_rearrange_stacks, d_weight);
+    hard_filter<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_weight);
     cudaDeviceSynchronize();
     hard_threshold.stop();
     printf("Hard threshold takes %.5f\n", hard_threshold.getSeconds());
