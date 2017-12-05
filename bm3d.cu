@@ -8,17 +8,15 @@ __constant__ GlobalConstants cu_const_params;
 
 #include "block_matching.cu_inl"
 
-float abspow2(cuComplex & a)
-{
+
+float norm2(cuComplex & a) {
     return (a.x * a.x) + (a.y * a.y);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Putting all the cuda kernels here
 ///////////////////////////////////////////////////////////////////////////////////////
-__device__ float norm2(cuComplex & a) {
-    return (a.x * a.x) + (a.y * a.y);
-}
+
 
 __global__ void kernel() {
     printf("Here in kernel\n");
@@ -76,20 +74,39 @@ __global__ void normalize(cufftComplex *data, int size) {
     data[index].y = data[index].y / (float)(size);
 }
 
-__global__ void hard_filter(cufftComplex *data) {
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
-    int j = threadIdx.y + blockIdx.y*blockDim.y;
-    int index = idx2(i, j, cu_const_params.image_width);
-
+/*
+ * taking d_rearrange_stacks and perform thresholding. Count number of non zeros
+ * Also will normalize the 1D transform result.
+ */
+__global__ void hard_filter(cufftComplex *d_rearrange_stacks, float *d_weight) {
+    int group_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (group_id >= cu_const_params.total_ref_patches) {
+        return;
+    }
+    int non_zero = 0;
     float threshold = cu_const_params.lambda_3d * cu_const_params.lambda_3d *
                       cu_const_params.sigma * cu_const_params.sigma *
-                      blockIdx.x * blockIdx.y*10000;
-    float val = norm2(data[index]);
-    if (val < threshold) {
-        data[index].x = 0.0f;
-        data[index].y = 0.0f;
-        // printf("index: %d with norm %f\n", index, val);
+                      blockIdx.x * blockIdx.y;
+    int patch_size = cu_const_params.patch_size;
+    int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size
+    int norm_factor = cu_const_params.max_group_size;
+    float x, y, val;
+    for (int i=0; i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
+        x = d_rearrange_stacks[offset + i].x;
+        y = d_rearrange_stacks[offset + i].y;
+        x = x / norm_factor;
+        y = y / norm_factor;
+        val = x*x + y*y;
+        if (val < threshold) {
+            x = 0.0f;
+            y = 0.0f;
+        } else {
+            ++non_zero;
+        }
+        d_rearrange_stacks[offset + i].x = x;
+        d_rearrange_stacks[offset + i].y = y;
     }
+    d_weight[group_id] = 1.0f / (float)non_zero;
 }
 
 /*
@@ -139,8 +156,8 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
             int h = k / patch_size;
             int output_index = idx3(z, w, h, cu_const_params.max_group_size, patch_size);
             int index = idx2(k, z, patch_size*patch_size);
-            // d_rearrange_stacks[output_index + offset].x = d_transformed_stacks[index + offset].x;
-            // d_rearrange_stacks[output_index + offset].y = d_transformed_stacks[index + offset].y;
+            d_rearrange_stacks[output_index + offset].x = d_transformed_stacks[index + offset].x;
+            d_rearrange_stacks[output_index + offset].y = d_transformed_stacks[index + offset].y;
         }
     }
 }
@@ -162,8 +179,8 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
         int w = xz / cu_const_params.max_group_size;
         int z = xz % cu_const_params.max_group_size;
         int index = idx3(w, h, z, patch_size, patch_size);
-        // d_transformed_stacks[index+offset].x = d_rearrange_stacks[i+offset].x;
-        // d_transformed_stacks[index+offset].y = d_rearrange_stacks[i+offset].y;
+        d_transformed_stacks[index+offset].x = d_rearrange_stacks[i+offset].x;
+        d_transformed_stacks[index+offset].y = d_rearrange_stacks[i+offset].y;
     }
 }
 
@@ -241,6 +258,7 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMalloc(&d_num_patches_in_stack, sizeof(uint) * total_ref_patches);
     cudaMalloc(&d_transformed_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
     cudaMalloc(&d_rearrange_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+    cudaMalloc(&d_weight, sizeof(float) * total_ref_patches);
 
     // Only use the generic params for now
     GlobalConstants params;
@@ -270,7 +288,7 @@ void Bm3d::set_device_param(uchar* src_image) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
     }
-    int batch_size = total_ref_patches * h_fst_step_params.max_group_size * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
+    int batch_size = total_ref_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
     if(cufftPlan1d(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, batch_size) != CUFFT_SUCCESS) {
         fprintf(stderr, "CUFFT Plan error: Plan failed");
         return;
@@ -334,21 +352,27 @@ void Bm3d::denoise_fst_step() {
     //perform 2d dct transform
     // Stopwatch trans;
     // trans.start();
-    // if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-    //     return;
-    // }
+    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
     // trans.stop();
     // printf("Transform takes %.5f\n", trans.getSeconds());
 
     // transpose d_transformed_stacks to d_rearrange_stacks
     rearrange_to_1D_layout();
     // perform 1d transform
-
-    // hard thresholding
-
+    if (cufftExecC2C(plan1D, d_rearrange_stacks, d_rearrange_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
+    // hard thresholding and normalize
+    hard_threshold();
     // inverse 1d transform
-
+    if (cufftExecC2C(plan1D, d_rearrange_stacks, d_rearrange_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        return;
+    }
     // transpose d_rearrange_stacks back to d_transformed_stacks
     rearrange_to_2D_layout();
     // inverse 2d transform
@@ -666,14 +690,6 @@ void Bm3d::rearrange_to_2D_layout() {
     printf("rearrange_to_2D_layout takes %.5f\n", fetch.getSeconds());
 }
 
-
-/*
- * DFT1D - Perform the 1D DFT transform on the 3D stacks. Since the data is organized
- *         as iterate through each patch in every group. We need to perform 1D DFT
- *         on the same pixel of every patch in the same group. We will use the stride.
- */
-
-
 /*
  * do_block_matching - launch kernel to run block matching
  */
@@ -690,4 +706,15 @@ void Bm3d::do_block_matching() {
     cudaDeviceSynchronize();
     bm_time.stop();
     printf("Block Matching: %f\n", bm_time.getSeconds());
+}
+
+void Bm3d::hard_threshold() {
+    Stopwatch hard_threshold;
+    hard_threshold.start();
+    int thread_per_block = 512;
+    int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
+    hard_filter<<<num_blocks, thread_per_block>>>(d_rearrange_stacks, d_weight);
+    cudaDeviceSynchronize();
+    hard_threshold.stop();
+    printf("Hard threshold takes %.5f\n", fetch.getSeconds());
 }

@@ -108,6 +108,8 @@ public:
     void rearrange_to_1D_layout();
 
     void rearrange_to_2D_layout();
+
+    void hard_threshold();
     /* data */
 };
 
