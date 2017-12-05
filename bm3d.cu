@@ -107,6 +107,9 @@ __global__ void hard_filter(cufftComplex *d_rearrange_stacks, float *d_weight) {
         d_rearrange_stacks[offset + i].y = y;
     }
     d_weight[group_id] = 1.0f / (float)non_zero;
+    if (group_id == 5) {
+        printf("index %d, (%f, %f)\n", offset, d_rearrange_stacks[offset].x, d_rearrange_stacks[offset].y);
+    }
 }
 
 /*
@@ -328,20 +331,34 @@ void Bm3d::denoise(uchar *src_image,
                    int channels,
                    int step,
                    int verbose = 1) {
+    Stopwatch init_time;
+    Stopwatch first_step;
+    Stopwatch sed_step;
     h_width = width;
     h_height = height;
     h_channels = channels;
+
+    init_time.start();
     set_device_param(src_image);
+    init_time.stop();
     // precompute_2d_transform();
+    first_step.start();
     denoise_fst_step();
+    first_step.stop();
     // fetch_data();
     // test_fill_precompute_data(src_image);
     // first step
     // test_cufft(src_image, dst_image);
     // DFT1D();
     // second step
-
+    sed_step.start();
+    denoise_2nd_step();
+    sed_step.stop();
     // copy image from device to host
+    printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+    printf("Init takes %f\n", init_time.getSeconds());
+    printf("First step takes %f\n", first_step.getSeconds());
+    printf("Second step takes %f\n", sed_step.getSeconds());
     free_device_params();
 }
 
@@ -351,8 +368,8 @@ void Bm3d::denoise(uchar *src_image,
 void Bm3d::denoise_fst_step() {
     //Block matching, each thread maps to a ref patch
     do_block_matching();
-    //gather patches, convert addresses to actual data
 
+    //gather patches
     arrange_block(d_noisy_image);
 
     //perform 2d dct transform
@@ -382,10 +399,11 @@ void Bm3d::denoise_fst_step() {
     // transpose d_rearrange_stacks back to d_transformed_stacks
     rearrange_to_2D_layout();
     // inverse 2d transform
-    // if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-    //     fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-    //     return;
-    // }
+    if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: ExecR2C backword failed");
+        return;
+    }
+    // Need to normalize 2D inverse result by dividing patch_size * patch_size
     // aggregate to single image by writing into buffer
 }
 
@@ -395,19 +413,29 @@ void Bm3d::denoise_fst_step() {
 void Bm3d::denoise_2nd_step() {
     //Block matching estimate image, each thread maps to a ref patch
 
-    //gather patches, convert addresses to actual data
-
-    //gather noisy image patches, convert addresses to actual data
+    //gather patches for estimate image
 
     // perform 2d dct transform on estimate
 
+    // rearrange estimate image patch
+
     // perform 1d transform on estimate
 
-    // calculate Wiener coefficient for each group
+    // calculate Wiener coefficient for each estimate group
+
+    // gather noisy image patches according to estimate block matching result
+
+    // perform 2d dct
+
+    // rearrange noisy data
+
+    // perform 1d dct
 
     // apply wiener coefficient to each group of transformed noisy data
 
     // inverse 1d transform on noisy data
+
+    // rearrange data
 
     // inverse 2d transform on noisy data
 
