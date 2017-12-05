@@ -353,7 +353,7 @@ void Bm3d::denoise_fst_step() {
     // Stopwatch trans;
     // trans.start();
     if (cufftExecC2C(plan, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        fprintf(stderr, "CUFFT error: 2D Forward failed");
         return;
     }
     // trans.stop();
@@ -363,14 +363,14 @@ void Bm3d::denoise_fst_step() {
     rearrange_to_1D_layout();
     // perform 1d transform
     if (cufftExecC2C(plan1D, d_rearrange_stacks, d_rearrange_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        fprintf(stderr, "CUFFT error: 1D Forward failed");
         return;
     }
     // hard thresholding and normalize
     hard_threshold();
     // inverse 1d transform
     if (cufftExecC2C(plan1D, d_rearrange_stacks, d_rearrange_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
-        fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
+        fprintf(stderr, "CUFFT error: 1D backword failed");
         return;
     }
     // transpose d_rearrange_stacks back to d_transformed_stacks
@@ -593,7 +593,7 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
 
 /*
  *  arrange_block - according to the stacked patch indices, fetching data from the transformed
- *                  data array of 2D DCT. Input is an array of uint2, every N uint2
+ *                  data array for 2D DCT. Input is an array of uint2, every N uint2
  *                  is a group. This kernel will put each group into an continuous array
  *                  of cufftComplex num with x component to be the value, y component to be 0.f
  */
