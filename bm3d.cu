@@ -364,9 +364,9 @@ void Bm3d::denoise(uchar *src_image,
 
     const uint num_pixels = h_width * h_height;
     cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
-    for (int i = 0; i < num_pixels; ++i) {
-        if (dst_image[i]) printf("non zero pixel %d\n", dst_image[i]);
-    }
+    // for (int i = 0; i < num_pixels; ++i) {
+    //     if (dst_image[i]) printf("non zero pixel %d\n", dst_image[i]);
+    // }
 
     free_device_params();
 }
