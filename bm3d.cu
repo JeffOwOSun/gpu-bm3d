@@ -86,8 +86,8 @@ __global__ void hard_filter(cufftComplex *d_rearrange_stacks, float *d_weight) {
     }
     int non_zero = 0;
     float threshold = cu_const_params.lambda_3d * cu_const_params.lambda_3d *
-                      cu_const_params.sigma * cu_const_params.sigma *
-                      blockIdx.x * blockIdx.y;
+                      cu_const_params.sigma * cu_const_params.sigma;
+    // printf("Threshold %f\n", threshold);
     int patch_size = cu_const_params.patch_size;
     int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
     int norm_factor = cu_const_params.max_group_size;
@@ -99,6 +99,7 @@ __global__ void hard_filter(cufftComplex *d_rearrange_stacks, float *d_weight) {
         y = y / norm_factor;
         val = x*x + y*y;
         if (val < threshold) {
+            // printf("below threshold\n");
             x = 0.0f;
             y = 0.0f;
         } else {
