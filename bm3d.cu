@@ -288,20 +288,20 @@ void Bm3d::set_device_param(uchar* src_image) {
     params.total_ref_patches = total_ref_patches;
 
     cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
-    // int dim2D[2] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size};
-    // // create cufft transform plan
-    // if(cufftPlanMany(&plan, 2, dim2D,
-    //                  NULL, 1, 0,
-    //                  NULL, 1, 0,
-    //                  CUFFT_C2C, total_ref_patches*h_fst_step_params.max_group_size) != CUFFT_SUCCESS) {
-    //     fprintf(stderr, "CUFFT Plan error: Plan failed");
-    //     return;
-    // }
-    // int batch_size = total_ref_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
-    // if(cufftPlan1d(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, batch_size) != CUFFT_SUCCESS) {
-    //     fprintf(stderr, "CUFFT Plan error: Plan failed");
-    //     return;
-    // }
+    int dim2D[2] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size};
+    // create cufft transform plan
+    if(cufftPlanMany(&plan, 2, dim2D,
+                     NULL, 1, 0,
+                     NULL, 1, 0,
+                     CUFFT_C2C, total_ref_patches*h_fst_step_params.max_group_size) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT Plan error: Plan failed");
+        return;
+    }
+    int batch_size = total_ref_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size;
+    if(cufftPlan1d(&plan1D, h_fst_step_params.max_group_size, CUFFT_C2C, batch_size) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT Plan error: Plan failed");
+        return;
+    }
     int dim3D[3] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size, h_fst_step_params.max_group_size};
     int size_3d = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size;
     if(cufftPlanMany(&plan3D, 3, dim3D,
