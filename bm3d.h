@@ -55,6 +55,7 @@ private:
     // device parameter
     cufftHandle plan;
     cufftHandle plan1D;
+    cufftHandle plan3D;
 
 public:
     Bm3d();
@@ -112,6 +113,8 @@ public:
     void rearrange_to_1D_layout();
 
     void rearrange_to_2D_layout();
+
+    void hard_threshold();
     /* data */
 };
 
