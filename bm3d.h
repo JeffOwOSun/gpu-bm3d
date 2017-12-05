@@ -55,6 +55,7 @@ private:
     // device parameter
     cufftHandle plan;
     cufftHandle plan1D;
+    cufftHandle plan3D;
 
 public:
     Bm3d();
