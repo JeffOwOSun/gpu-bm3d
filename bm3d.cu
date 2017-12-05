@@ -88,7 +88,7 @@ __global__ void hard_filter(cufftComplex *d_rearrange_stacks, float *d_weight) {
                       cu_const_params.sigma * cu_const_params.sigma *
                       blockIdx.x * blockIdx.y;
     int patch_size = cu_const_params.patch_size;
-    int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size
+    int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
     int norm_factor = cu_const_params.max_group_size;
     float x, y, val;
     for (int i=0; i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
@@ -716,5 +716,5 @@ void Bm3d::hard_threshold() {
     hard_filter<<<num_blocks, thread_per_block>>>(d_rearrange_stacks, d_weight);
     cudaDeviceSynchronize();
     hard_threshold.stop();
-    printf("Hard threshold takes %.5f\n", fetch.getSeconds());
+    printf("Hard threshold takes %.5f\n", hard_threshold.getSeconds());
 }
