@@ -27,7 +27,7 @@ struct Params
            unsigned int distance_threshold_2 = 400,
            unsigned int stripe = 3,
            float sigma = 10,
-           float lambda_3d = 0.0f; // 2.7f,
+           float lambda_3d = 0.0f, // 2.7f,
            float beta = 2.0f) :
         searching_window_size(searching_window_size),
         patch_size(patch_size),
