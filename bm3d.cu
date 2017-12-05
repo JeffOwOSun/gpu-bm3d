@@ -161,7 +161,7 @@ __global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftC
         }
     }
     if (group_id == 3) {
-        printf("Before 1D: %f\n", d_rearrange_stacks[offset]);
+        printf("Before 1D: (%f,%f)\n", d_rearrange_stacks[offset].x, d_rearrange_stacks[offset].y);
     }
 }
 
@@ -186,7 +186,7 @@ __global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks
         d_transformed_stacks[index+offset].y = d_rearrange_stacks[i+offset].y;
     }
     if (group_id == 3) {
-        printf("After 1D: %f\n", d_rearrange_stacks[offset]);
+        printf("After 1D: (%f,%f)\n", d_rearrange_stacks[offset].x, d_rearrange_stacks[offset].y);
     }
 }
 
