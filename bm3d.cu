@@ -394,29 +394,17 @@ void Bm3d::denoise_2nd_step() {
 
     //gather patches for estimate image
 
-    // perform 2d dct transform on estimate
-
-    // rearrange estimate image patch
-
-    // perform 1d transform on estimate
+    // perform 3d transform for estimate groups
 
     // calculate Wiener coefficient for each estimate group
 
     // gather noisy image patches according to estimate block matching result
 
-    // perform 2d dct
-
-    // rearrange noisy data
-
-    // perform 1d dct
+    // perform 3d transform for estimate groups
 
     // apply wiener coefficient to each group of transformed noisy data
 
-    // inverse 1d transform on noisy data
-
-    // rearrange data
-
-    // inverse 2d transform on noisy data
+    // inverse 3d transform
 
     // aggregate to single image by writing into buffer
 }
