@@ -83,7 +83,7 @@ __global__ void reduction(
     output[pixel_id] = (uchar)(numerator[pixel_id] / denominator[pixel_id]);
 }
 
-void Bm3d::do_aggregation(uchar *dst_image) {
+void Bm3d::do_aggregation() {
     Stopwatch ag_time;
     ag_time.start();
     const uint num_threads_per_block = 512;
@@ -105,7 +105,6 @@ void Bm3d::do_aggregation(uchar *dst_image) {
     cudaDeviceSynchronize();
     ag_time.stop();
     printf("Aggregation: %f\n", ag_time.getSeconds());
-    cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
 }
 
 void Bm3d::test_aggregation(
@@ -134,5 +133,8 @@ void Bm3d::test_aggregation(
     cudaMemcpy(d_weight, weights, sizeof(float) * total_ref_patches, cudaMemcpyHostToDevice);
     
     // step 3: do aggregation
-    do_aggregation(dst_image);
+    do_aggregation();
+
+    const uint num_pixels = h_width * h_height;
+    cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
 }

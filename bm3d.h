@@ -108,7 +108,7 @@ public:
 
     void do_block_matching();
 
-    void do_aggregation(uchar *dst_image);
+    void do_aggregation();
 
     void rearrange_to_1D_layout();
 
