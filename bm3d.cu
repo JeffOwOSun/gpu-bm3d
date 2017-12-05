@@ -271,8 +271,8 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMalloc(&d_weight, sizeof(float) * total_ref_patches);
 
     cudaMalloc(&d_numerator, sizeof(float) * size);
-    cudaMalloc(&d_denominator, sizeof(uint) * size);
-    cudaMalloc(&d_weight, sizeof(uint) * total_ref_patches);
+    cudaMalloc(&d_denominator, sizeof(float) * size);
+    cudaMalloc(&d_weight, sizeof(float) * total_ref_patches);
 
     cudaMalloc(&d_denoised_image, sizeof(uchar) * size);
 
@@ -361,9 +361,12 @@ void Bm3d::denoise(uchar *src_image,
     printf("Init takes %f\n", init_time.getSeconds());
     printf("First step takes %f\n", first_step.getSeconds());
     printf("Second step takes %f\n", sed_step.getSeconds());
-    // copy the denoised image to the output buffer
+
     const uint num_pixels = h_width * h_height;
     cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
+    for (int i = 0; i < num_pixels; ++i) {
+        if (dst_image[i]) printf("non zero pixel %d\n", dst_image[i]);
+    }
 
     free_device_params();
 }
@@ -396,7 +399,6 @@ void Bm3d::denoise_fst_step() {
     // Need to normalize 3D inverse result by dividing patch_size * patch_size
     // aggregate to single image by writing into buffer
     do_aggregation();
-    // result is in d_denoised_image
 }
 
 /*
