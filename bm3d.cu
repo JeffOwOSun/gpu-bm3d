@@ -79,7 +79,7 @@ __global__ void normalize(cufftComplex *data, int size) {
  * taking d_rearrange_stacks and perform thresholding. Count number of non zeros
  * Also will normalize the 1D transform result.
  */
-__global__ void hard_filter(cufftComplex *d_rearrange_stacks, float *d_weight) {
+__global__ void hard_filter(cufftComplex *d_transformed_stacks, float *d_weight) {
     int group_id = threadIdx.x + blockIdx.x * blockDim.x;
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
@@ -90,11 +90,11 @@ __global__ void hard_filter(cufftComplex *d_rearrange_stacks, float *d_weight) {
     // printf("Threshold %f\n", threshold);
     int patch_size = cu_const_params.patch_size;
     int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
-    int norm_factor = cu_const_params.max_group_size;
+    int norm_factor = cu_const_params.max_group_size * patch_size * patch_size;
     float x, y, val;
     for (int i=0; i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
-        x = d_rearrange_stacks[offset + i].x;
-        y = d_rearrange_stacks[offset + i].y;
+        x = d_transformed_stacks[offset + i].x;
+        y = d_transformed_stacks[offset + i].y;
         x = x / norm_factor;
         y = y / norm_factor;
         val = x*x + y*y;
@@ -105,12 +105,20 @@ __global__ void hard_filter(cufftComplex *d_rearrange_stacks, float *d_weight) {
         } else {
             ++non_zero;
         }
-        d_rearrange_stacks[offset + i].x = x;
-        d_rearrange_stacks[offset + i].y = y;
+        d_transformed_stacks[offset + i].x = x;
+        d_transformed_stacks[offset + i].y = y;
     }
     d_weight[group_id] = 1.0f / (float)non_zero;
     if (group_id == 5) {
-        printf("index %d, (%f, %f)\n", offset, d_rearrange_stacks[offset].x, d_rearrange_stacks[offset].y);
+        printf("index %d, (%f, %f)\n", offset, d_transformed_stacks[offset].x, d_transformed_stacks[offset].y);
+    }
+}
+
+
+__global__ void get_wiener_coef(cufftComplex *d_rearrange_stacks, float *d_weight) {
+    int group_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (group_id >= cu_const_params.total_ref_patches) {
+        return;
     }
 }
 
@@ -377,7 +385,7 @@ void Bm3d::denoise(uchar *src_image,
  */
 void Bm3d::denoise_fst_step() {
     //Block matching, each thread maps to a ref patch
-    do_block_matching();
+    do_block_matching(d_noisy_image);
 
     //gather patches
     arrange_block(d_noisy_image);
@@ -407,16 +415,19 @@ void Bm3d::denoise_fst_step() {
  */
 void Bm3d::denoise_2nd_step() {
     //Block matching estimate image, each thread maps to a ref patch
-
+    do_block_matching(d_denoised_image);
     //gather patches for estimate image
-
+    arrange_block(d_denoised_image);
     // perform 3d transform for estimate groups
-
+    if (cufftExecC2C(plan3D, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: 3D Forward failed");
+        return;
+    }
     // calculate Wiener coefficient for each estimate group
-
+    cal_wiener_coef();
     // gather noisy image patches according to estimate block matching result
 
-    // perform 3d transform for estimate groups
+    // perform 3d transform on original image
 
     // apply wiener coefficient to each group of transformed noisy data
 
@@ -548,7 +559,7 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     // // call our block matching magic
     // block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
 
-    do_block_matching();
+    do_block_matching(input_image);
 
     Q *h_stacks = (Q *)malloc(sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
     cudaMemcpy(h_stacks, d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyDeviceToHost);
@@ -713,16 +724,16 @@ void Bm3d::rearrange_to_2D_layout() {
 /*
  * do_block_matching - launch kernel to run block matching
  */
-void Bm3d::do_block_matching() {
+void Bm3d::do_block_matching(uchar* input_image) {
     // determine how many threads we need to spawn
     Stopwatch bm_time;
     bm_time.start();
     printf("total_ref_patches %d\n", total_ref_patches);
     const int total_num_threads = total_ref_patches;
-    const int threads_per_block = 1024;
+    const int threads_per_block = 512;
     const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
     printf("total_num_threads %d num_block %d\n", total_ref_patches, num_blocks);
-    block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
+    block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack, input_image);
     cudaDeviceSynchronize();
     bm_time.stop();
     printf("Block Matching: %f\n", bm_time.getSeconds());
@@ -737,4 +748,15 @@ void Bm3d::hard_threshold() {
     cudaDeviceSynchronize();
     hard_threshold.stop();
     printf("Hard threshold takes %.5f\n", hard_threshold.getSeconds());
+}
+
+void Bm3d::cal_wiener_coef() {
+    Stopwatch wiener_coef;
+    wiener_coef.start();
+    int thread_per_block = 512;
+    int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
+    get_wiener_coef<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_wien_coef);
+    cudaDeviceSynchronize();
+    wiener_coef.stop();
+    printf("Get wiener takes %.5f\n", wiener_coef.getSeconds());
 }

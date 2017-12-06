@@ -106,7 +106,7 @@ public:
 
     void DFT1D();
 
-    void do_block_matching();
+    void do_block_matching(uchar*);
 
     void do_aggregation();
 
@@ -115,7 +115,8 @@ public:
     void rearrange_to_2D_layout();
 
     void hard_threshold();
-    /* data */
+
+    void cal_wiener_coef();
 };
 
 struct GlobalConstants {
