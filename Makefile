@@ -13,13 +13,14 @@ NVCC=nvcc
 
 default: $(APPNAME)
 
-opencv: opencv_test
+psnr: psnr.o
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LDLIBS) psnr.o -o $@
 
 $(APPNAME): $(OBJS)
 	$(NVCC) $(NVCCFLAGS) $(LDFLAGS) $(LDLIBS) $(OBJS) -I /opt/X11/include -L /opt/X11/lib -o $@
 
 %.o: %.cpp
-	$(NVCC) $(NVCCFLAGS) $(LDFLAGS) $(addprefix -I,$(INCLUDE)) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(addprefix -I,$(INCLUDE)) -c $< -o $@
 
 %.o: %.cu
 	$(NVCC) $(NVCCFLAGS) $(LDFLAGS) $(addprefix -I,$(INCLUDE)) -c $< -o $@
