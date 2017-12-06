@@ -97,6 +97,7 @@ int main(int argc, char** argv)
              image2.data(),
              image.width(),
              image.height(),
+             sigma,
              channels,
              step,
              verbose);
