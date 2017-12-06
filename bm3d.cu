@@ -90,13 +90,11 @@ __global__ void hard_filter(cufftComplex *d_transformed_stacks, float *d_weight)
     // printf("Threshold %f\n", threshold);
     int patch_size = cu_const_params.patch_size;
     int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
-    int norm_factor = cu_const_params.max_group_size * patch_size * patch_size;
+
     float x, y, val;
     for (int i=0; i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
         x = d_transformed_stacks[offset + i].x;
         y = d_transformed_stacks[offset + i].y;
-        x = x / norm_factor;
-        y = y / norm_factor;
         val = x*x + y*y;
         if (val < threshold) {
             // printf("below threshold\n");
@@ -352,19 +350,15 @@ void Bm3d::denoise(uchar *src_image,
     init_time.start();
     set_device_param(src_image);
     init_time.stop();
-    // precompute_2d_transform();
+
     first_step.start();
     denoise_fst_step();
     first_step.stop();
-    // fetch_data();
-    // test_fill_precompute_data(src_image);
-    // first step
-    // test_cufft(src_image, dst_image);
-    // DFT1D();
-    // second step
+
     sed_step.start();
-    denoise_2nd_step();
+    // denoise_2nd_step();
     sed_step.stop();
+
     // copy image from device to host
     printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
     printf("Init takes %f\n", init_time.getSeconds());
