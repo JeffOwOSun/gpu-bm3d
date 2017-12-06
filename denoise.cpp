@@ -108,8 +108,8 @@ int main(int argc, char** argv)
     // image.save("test_block_matching.png");
 
     // bm3d.test_aggregation(
-    //     image.data(), 
-    //     image.width(), 
+    //     image.data(),
+    //     image.width(),
     //     image.height(),
     //     image2.data()
     // );
