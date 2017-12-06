@@ -124,7 +124,6 @@ __global__ void get_wiener_coef(cufftComplex *d_transformed_stacks, float *d_wie
     int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
 
     float val;
-    float wien;
     for (int i=0; i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
         val = norm2(d_transformed_stacks[offset + i]) / (float)norm_fator;
         d_wien_coef[offset + i] = val / (val + sigma * sigma);
@@ -797,7 +796,7 @@ void Bm3d::apply_wien_filter() {
     apply_wiener_coef.start();
     int thread_per_block = 512;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
-    apply_wiener_coef<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_wien_coef);
+    apply_wiener_coef<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_wien_coef, d_wien_weight);
     cudaDeviceSynchronize();
     apply_wiener_coef.stop();
     printf("Apply wiener takes %.5f\n", apply_wiener_coef.getSeconds());
