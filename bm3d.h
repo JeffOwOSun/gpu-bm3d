@@ -43,6 +43,7 @@ private:
     // cuComplex* d_transformed_stacks;    //3D groups of a batch
     float* d_weight;                   //Weights for aggregation
     float* d_wien_coef;             //Only for two step denoising, contains wiener coefficients
+    float* d_wien_weight;           // wiener coefficient norm for each group
     float* d_kaiser_window;         //Kaiser window used for aggregation
     int total_ref_patches;
     int total_patches;
@@ -108,7 +109,7 @@ public:
 
     void do_block_matching(uchar*);
 
-    void do_aggregation();
+    void do_aggregation(float*);
 
     void rearrange_to_1D_layout();
 
@@ -117,6 +118,8 @@ public:
     void hard_threshold();
 
     void cal_wiener_coef();
+
+    void apply_wien_filter();
 };
 
 struct GlobalConstants {

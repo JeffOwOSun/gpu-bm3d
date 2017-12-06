@@ -10,14 +10,14 @@ __constant__ GlobalConstants cu_const_params;
 #include "aggregation.cu_inl"
 
 
-float norm2(cuComplex & a) {
-    return (a.x * a.x) + (a.y * a.y);
-}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Putting all the cuda kernels here
 ///////////////////////////////////////////////////////////////////////////////////////
-
+__device__ float norm2(cuComplex & a) {
+    return (a.x * a.x) + (a.y * a.y);
+}
 
 __global__ void kernel() {
     printf("Here in kernel\n");
@@ -113,12 +113,39 @@ __global__ void hard_filter(cufftComplex *d_transformed_stacks, float *d_weight)
 }
 
 
-__global__ void get_wiener_coef(cufftComplex *d_rearrange_stacks, float *d_weight) {
+__global__ void get_wiener_coef(cufftComplex *d_transformed_stacks, float *d_wien_coef) {
     int group_id = threadIdx.x + blockIdx.x * blockDim.x;
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
     }
+    const int patch_size = cu_const_params.patch_size;
+    const int sigma = cu_const_params.sigma;
+    const int norm_fator = patch_size * patch_size * cu_const_params.max_group_size;
+    int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
 
+    float val;
+    float wien;
+    for (int i=0; i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
+        val = norm2(d_transformed_stacks[offset + i]) / (float)norm_fator;
+        d_wien_coef[offset + i] = val / (val + sigma * sigma);
+    }
+}
+
+__global__ void apply_wiener_coef(cufftComplex *d_transformed_stacks, float *d_wien_coef, float *d_wien_weight) {
+    int group_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (group_id >= cu_const_params.total_ref_patches) {
+        return;
+    }
+    const int patch_size = cu_const_params.patch_size;
+    int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
+    float wien_acc = 0.0f;
+    for (int i=0; i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
+        float wien = d_wien_coef[offset+i];
+        d_transformed_stacks[offset + i].x *= wien;
+        d_transformed_stacks[offset + i].y *= wien;
+        wien_acc += wien * wien;
+    }
+    d_wien_weight[group_id] = 1.0f / wien_acc;
 }
 
 /*
@@ -281,6 +308,8 @@ void Bm3d::set_device_param(uchar* src_image) {
     cudaMalloc(&d_numerator, sizeof(float) * size);
     cudaMalloc(&d_denominator, sizeof(float) * size);
     cudaMalloc(&d_weight, sizeof(float) * total_ref_patches);
+    cudaMalloc(&d_wien_coef, sizeof(float) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+    cudaMalloc(&d_wien_weight, sizeof(float) * total_ref_patches);
 
     cudaMalloc(&d_denoised_image, sizeof(uchar) * size);
 
@@ -357,7 +386,7 @@ void Bm3d::denoise(uchar *src_image,
     first_step.stop();
 
     sed_step.start();
-    // denoise_2nd_step();
+    denoise_2nd_step();
     sed_step.stop();
 
     // copy image from device to host
@@ -402,7 +431,7 @@ void Bm3d::denoise_fst_step() {
     }
     // Need to normalize 3D inverse result by dividing patch_size * patch_size
     // aggregate to single image by writing into buffer
-    do_aggregation();
+    do_aggregation(d_weight);
 }
 
 /*
@@ -421,14 +450,21 @@ void Bm3d::denoise_2nd_step() {
     // calculate Wiener coefficient for each estimate group
     cal_wiener_coef();
     // gather noisy image patches according to estimate block matching result
-
+    arrange_block(d_noisy_image);
     // perform 3d transform on original image
-
+    if (cufftExecC2C(plan3D, d_transformed_stacks, d_transformed_stacks, CUFFT_FORWARD) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: 3D Forward failed");
+        return;
+    }
     // apply wiener coefficient to each group of transformed noisy data
-
+    apply_wien_filter();
     // inverse 3d transform
-
+    if (cufftExecC2C(plan3D, d_transformed_stacks, d_transformed_stacks, CUFFT_INVERSE) != CUFFT_SUCCESS) {
+        fprintf(stderr, "CUFFT error: 3D Forward failed");
+        return;
+    }
     // aggregate to single image by writing into buffer
+    do_aggregation(d_wien_weight);
 }
 
 void Bm3d::run_kernel() {
@@ -754,4 +790,15 @@ void Bm3d::cal_wiener_coef() {
     cudaDeviceSynchronize();
     wiener_coef.stop();
     printf("Get wiener takes %.5f\n", wiener_coef.getSeconds());
+}
+
+void Bm3d::apply_wien_filter() {
+    Stopwatch apply_wiener_coef;
+    apply_wiener_coef.start();
+    int thread_per_block = 512;
+    int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
+    apply_wiener_coef<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_wien_coef);
+    cudaDeviceSynchronize();
+    apply_wiener_coef.stop();
+    printf("Apply wiener takes %.5f\n", apply_wiener_coef.getSeconds());
 }
