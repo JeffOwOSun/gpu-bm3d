@@ -13,8 +13,8 @@ NVCC=nvcc
 
 default: $(APPNAME)
 
-psnr: psnr.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(LDLIBS) psnr.o -o $@
+psnr: cal_psnr.cpp
+	$(CXX) $(CXXFLAGS) -lpng -ljpeg -lX11 -I /opt/X11/include -L /opt/X11/lib cal_psnr.cpp -o $@
 
 $(APPNAME): $(OBJS)
 	$(NVCC) $(NVCCFLAGS) $(LDFLAGS) $(LDLIBS) $(OBJS) -I /opt/X11/include -L /opt/X11/lib -o $@

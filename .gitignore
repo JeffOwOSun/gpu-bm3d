@@ -1,6 +1,7 @@
 .vscode/
 .DS_Store
 opencv_test
+psnr
 *.o
 bm3d
 *.o
