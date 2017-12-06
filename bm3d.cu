@@ -792,12 +792,12 @@ void Bm3d::cal_wiener_coef() {
 }
 
 void Bm3d::apply_wien_filter() {
-    Stopwatch apply_wiener_coef;
-    apply_wiener_coef.start();
+    Stopwatch apply_wiener;
+    apply_wiener.start();
     int thread_per_block = 512;
     int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
     apply_wiener_coef<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_wien_coef, d_wien_weight);
     cudaDeviceSynchronize();
-    apply_wiener_coef.stop();
-    printf("Apply wiener takes %.5f\n", apply_wiener_coef.getSeconds());
+    apply_wiener.stop();
+    printf("Apply wiener takes %.5f\n", apply_wiener.getSeconds());
 }
