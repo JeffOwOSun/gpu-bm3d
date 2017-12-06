@@ -79,6 +79,7 @@ public:
                  uchar *dst_image,
                  int width,
                  int height,
+                 int sigma,
                  int channels,
                  int step,
                  int verbose);

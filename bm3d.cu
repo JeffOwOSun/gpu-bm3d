@@ -366,6 +366,7 @@ void Bm3d::denoise(uchar *src_image,
                    uchar *dst_image,
                    int width,
                    int height,
+                   int sigma,
                    int channels,
                    int step,
                    int verbose = 1) {
@@ -384,8 +385,11 @@ void Bm3d::denoise(uchar *src_image,
     denoise_fst_step();
     first_step.stop();
 
+
     sed_step.start();
-    denoise_2nd_step();
+    if (step == 2) {
+        denoise_2nd_step();
+    }
     sed_step.stop();
 
     // copy image from device to host

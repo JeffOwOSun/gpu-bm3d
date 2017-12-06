@@ -5,3 +5,4 @@ psnr
 *.o
 bm3d
 *.o
+Makefile
