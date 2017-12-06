@@ -35,7 +35,6 @@ private:
     //Auxiliary arrays
     cufftComplex* precompute_patches;       // 3D array of precomputed 2D transformation of all the patches
     cufftComplex* d_transformed_stacks;        // 4D array to store the intermediate result, iterate patch first then width then height (Group, patch, width, height)
-    cufftComplex* d_rearrange_stacks;
     Q* d_stacks;                               // 3D array of patch addresses, size is [num_ref * max_num_patches_in_stack]
     uint* d_num_patches_in_stack;       //Number of similar patches for each referenca patch that are stored in d_stacks
     float* d_numerator;    //Numerator used for aggregation
@@ -88,16 +87,6 @@ public:
 
     void denoise_2nd_step();
 
-    void precompute_2d_transform();
-
-    void test_fill_precompute_data(uchar*);
-
-    void inspect_patch(uchar*, float2* h_data, int width, int height, int i, int j);
-
-    void run_kernel();
-
-    void test_cufft(uchar*, uchar*);
-
     void test_block_matching(uchar *input_image, int width = 40, int height = 40);
 
     void test_aggregation(uchar *src_image, uint width, uint height, uchar *dst_image);
@@ -106,15 +95,9 @@ public:
 
     void test_arrange_block(uchar*);
 
-    void DFT1D();
-
     void do_block_matching(uchar*);
 
     void do_aggregation(float*);
-
-    void rearrange_to_1D_layout();
-
-    void rearrange_to_2D_layout();
 
     void hard_threshold();
 

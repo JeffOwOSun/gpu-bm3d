@@ -19,32 +19,6 @@ __device__ float norm2(cuComplex & a) {
     return (a.x * a.x) + (a.y * a.y);
 }
 
-__global__ void kernel() {
-    printf("Here in kernel\n");
-    printf("Image width: %d, height: %d\n", cu_const_params.image_width, cu_const_params.image_height);
-}
-
-__global__ void fill_precompute_data(cufftComplex* precompute_patches) {
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
-    int j = threadIdx.y + blockIdx.y*blockDim.y;
-    int width = (cu_const_params.image_width - cu_const_params.patch_size + 1);
-    int height = (cu_const_params.image_height - cu_const_params.patch_size + 1);
-    if (i >= width || j >= height) {
-        return;
-    }
-    // (i,j) is the top left corner of the patch
-    for (int q=j;q<j+cu_const_params.patch_size;q++) {
-        for (int p=i;p<i+cu_const_params.patch_size;p++) {
-            // (p,q) is the image pixel
-            int z = idx2(p-i,q-j,cu_const_params.patch_size);
-            int index = idx3(z, i, j, cu_const_params.patch_size*cu_const_params.patch_size, width);
-            precompute_patches[index].x = (float)(cu_const_params.image_data[idx2(p, q, cu_const_params.image_width)]);
-            precompute_patches[index].y = 0.0f;
-        }
-    }
-}
-
-
 __global__ void real2complex(uchar* h_data, cufftComplex *output) {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     int j = threadIdx.y + blockIdx.y*blockDim.y;
@@ -107,9 +81,6 @@ __global__ void hard_filter(cufftComplex *d_transformed_stacks, float *d_weight)
         d_transformed_stacks[offset + i].y = y;
     }
     d_weight[group_id] = 1.0f / (float)non_zero;
-    if (group_id == 5) {
-        printf("index %d, (%f, %f)\n", offset, d_transformed_stacks[offset].x, d_transformed_stacks[offset].y);
-    }
 }
 
 
@@ -174,60 +145,6 @@ __global__ void fill_patch_major_from_source(Q* d_stacks, uint* d_num_patches_in
     }
 }
 
-/*
- *  Each thread maps to a group
- */
-__global__ void fill_stack_major_data(cufftComplex* d_transformed_stacks, cufftComplex* d_rearrange_stacks) {
-    int group_id = threadIdx.x + blockIdx.x * blockDim.x;
-    if (group_id >= cu_const_params.total_ref_patches) {
-        return;
-    }
-    int patch_size = cu_const_params.patch_size;
-
-    // start patch num
-    int start = group_id*cu_const_params.max_group_size;
-    int offset = start * patch_size * patch_size;
-
-    for (int z=0;z<cu_const_params.max_group_size;z++) {
-        for (int k=0;k<patch_size*patch_size;k++) {
-            int w = k % patch_size;
-            int h = k / patch_size;
-            int output_index = idx3(z, w, h, cu_const_params.max_group_size, patch_size);
-            int index = idx2(k, z, patch_size*patch_size);
-            d_rearrange_stacks[output_index + offset].x = d_transformed_stacks[index + offset].x;
-            d_rearrange_stacks[output_index + offset].y = d_transformed_stacks[index + offset].y;
-        }
-    }
-    if (group_id == 3) {
-        printf("Before 1D: (%f,%f)\n", d_rearrange_stacks[offset].x, d_rearrange_stacks[offset].y);
-    }
-}
-
-__global__ void fill_patch_major_from_1D_layout(cufftComplex* d_rearrange_stacks, cufftComplex* d_transformed_stacks) {
-    int group_id = threadIdx.x + blockIdx.x * blockDim.x;
-    if (group_id >= cu_const_params.total_ref_patches) {
-        return;
-    }
-    int patch_size = cu_const_params.patch_size;
-
-    // start patch num
-    int start = group_id*cu_const_params.max_group_size;
-    int offset = start * patch_size * patch_size;
-
-    for (int i=0;i<patch_size*patch_size*cu_const_params.max_group_size;i++) {
-        int h = (i / (cu_const_params.max_group_size * patch_size));
-        int xz = i - h*cu_const_params.max_group_size * patch_size;
-        int w = xz / cu_const_params.max_group_size;
-        int z = xz % cu_const_params.max_group_size;
-        int index = idx3(w, h, z, patch_size, patch_size);
-        d_transformed_stacks[index+offset].x = d_rearrange_stacks[i+offset].x;
-        d_transformed_stacks[index+offset].y = d_rearrange_stacks[i+offset].y;
-    }
-    if (group_id == 3) {
-        printf("After 1D: (%f,%f)\n", d_rearrange_stacks[offset].x, d_rearrange_stacks[offset].y);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////
 // Class member functions
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -271,37 +188,16 @@ void Bm3d::set_2nd_step_param() {
  * Set device params and allocate device memories
  */
 void Bm3d::set_device_param(uchar* src_image) {
-    int deviceCount = 0;
     total_patches = (h_width - h_fst_step_params.patch_size + 1) * (h_height - h_fst_step_params.patch_size + 1);
     total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
-
-    cudaGetDeviceCount(&deviceCount);
-    printf("---------------------------------------------------------\n");
-    printf("Initializing CUDA for CudaRenderer\n");
-    printf("Found %d CUDA devices\n", deviceCount);
-    std::string name;
-    for (int i=0; i<deviceCount; i++) {
-        cudaDeviceProp deviceProps;
-        cudaGetDeviceProperties(&deviceProps, i);
-        name = deviceProps.name;
-
-        printf("Device %d: %s\n", i, deviceProps.name);
-        printf("   SMs:        %d\n", deviceProps.multiProcessorCount);
-        printf("   Global mem: %.0f MB\n", static_cast<float>(deviceProps.totalGlobalMem) / (1024 * 1024));
-        printf("   CUDA Cap:   %d.%d\n", deviceProps.major, deviceProps.minor);
-    }
-    printf("---------------------------------------------------------\n");
-
     // copy original image to cuda
     const uint size = h_width * h_height;
     cudaMalloc(&d_noisy_image, sizeof(uchar) * h_channels * size);
     cudaMemcpy(d_noisy_image, src_image, sizeof(uchar) * h_channels * size, cudaMemcpyHostToDevice);
 
-    cudaMalloc(&precompute_patches, sizeof(cufftComplex) * total_patches * h_fst_step_params.patch_size * h_fst_step_params.patch_size);
     cudaMalloc(&d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
     cudaMalloc(&d_num_patches_in_stack, sizeof(uint) * total_ref_patches);
     cudaMalloc(&d_transformed_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
-    cudaMalloc(&d_rearrange_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
     cudaMalloc(&d_weight, sizeof(float) * total_ref_patches);
 
     cudaMalloc(&d_numerator, sizeof(float) * size);
@@ -400,9 +296,6 @@ void Bm3d::denoise(uchar *src_image,
 
     const uint num_pixels = h_width * h_height;
     cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
-    // for (int i = 0; i < num_pixels; ++i) {
-    //     if (dst_image[i]) printf("non zero pixel %d\n", dst_image[i]);
-    // }
 
     free_device_params();
 }
@@ -468,80 +361,6 @@ void Bm3d::denoise_2nd_step() {
     }
     // aggregate to single image by writing into buffer
     do_aggregation(d_wien_weight);
-}
-
-void Bm3d::run_kernel() {
-    kernel<<<1,1>>>();
-}
-
-/*
- * precompute the 2D transform on all the patches, the data is organized as follows:
- * for patch at (i,j) with patch size = 2, then in precompute_patches, the data is
- * stored as (i,j) (i+1,j) (i,j+1) (i+1,j+1), so the dimension is height*width*4
- * we first iterate z dim, then x dim then y dim.
- */
-void Bm3d::precompute_2d_transform() {
-    // prepare data
-    Stopwatch fill_time;
-    Stopwatch tran_time;
-    int patch_size = h_fst_step_params.patch_size;
-    int width = (h_width - patch_size + 1);
-    int height = (h_height - patch_size + 1);
-    int size = width*height*patch_size*patch_size;
-
-    float* h_data = (float*)malloc(size*sizeof(float));
-    dim3 dimBlock(16,16);
-    dim3 dimGrid((width+15)/16, (height+15)/16);
-    fill_time.start();
-    fill_precompute_data<<<dimGrid, dimBlock>>>(precompute_patches);
-    fill_time.stop();
-    // 2D transformation
-    tran_time.start();
-    for(int i=0;i<width*height*patch_size*patch_size;i+=patch_size*patch_size*BATCH_2D) {
-        if (cufftExecC2C(plan, precompute_patches+i, precompute_patches+i, CUFFT_FORWARD) != CUFFT_SUCCESS) {
-            fprintf(stderr, "CUFFT error: ExecR2C Forward failed");
-            return;
-        }
-    }
-    tran_time.stop();
-    printf("Data filling using %f\n", fill_time.getSeconds());
-    printf("Exec using %f\n", tran_time.getSeconds());
-}
-
-void Bm3d::test_fill_precompute_data(uchar* src_image) {
-    int patch_size = h_fst_step_params.patch_size;
-    int width = (h_width - patch_size + 1);
-    int height = (h_height - patch_size + 1);
-    int size = width*height*patch_size*patch_size;
-    float2* d_data;
-    float2* h_data = (float2*)malloc(size*sizeof(float2));
-    cudaMalloc(&d_data, sizeof(float2) * size);
-
-    dim3 dimBlock(16,16);
-    dim3 dimGrid((width+15)/16, (height+15)/16);
-    fill_precompute_data<<<dimGrid, dimBlock>>>((cufftComplex*)d_data);
-    cudaMemcpy(h_data, d_data, size * sizeof(float2), cudaMemcpyDeviceToHost);
-    if (cudaGetLastError() != cudaSuccess) {
-        fprintf(stderr, "Cuda error: Failed results copy\n");
-        return;
-    }
-    inspect_patch(src_image, h_data, width, height, 0,0);
-}
-
-void Bm3d::inspect_patch(uchar* src_image, float2* h_data, int width, int height, int i, int j) {
-    int p2 = h_fst_step_params.patch_size*h_fst_step_params.patch_size;
-    h_data = h_data + j*width*p2 + i*p2;
-    for (int q=j;q<j+h_fst_step_params.patch_size;q++) {
-        for (int p=i;p<i+h_fst_step_params.patch_size;p++) {
-            // (p,q) is the image pixel
-            printf("Image Data: %zu, test data: %0.f\n", src_image[idx2(p,q,h_width)], (*h_data).x);
-            h_data++;
-        }
-    }
-}
-
-void Bm3d::test_cufft(uchar* src_image, uchar* dst_image) {
-
 }
 
 void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
@@ -728,45 +547,15 @@ void Bm3d::test_arrange_block(uchar *input_data) {
 }
 
 /*
- * fetch_data - according to the stacked patch indices, fetching data from the transformed
- *              data array of 2D DCT. Input is an array of uint2, every N uint2
- *              is a group. For each group of dim (width, height, num_patches), we will go
- *              through num_pathches first, then width then height.
- */
-void Bm3d::rearrange_to_1D_layout() {
-    Stopwatch fetch;
-    fetch.start();
-    int thread_per_block = 512;
-    int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
-    fill_stack_major_data<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_rearrange_stacks);
-    cudaDeviceSynchronize();
-    fetch.stop();
-    printf("rearrange_to_1D_layout takes %.5f\n", fetch.getSeconds());
-}
-
-void Bm3d::rearrange_to_2D_layout() {
-    Stopwatch fetch;
-    fetch.start();
-    int thread_per_block = 512;
-    int num_blocks = (total_ref_patches + thread_per_block - 1) / thread_per_block;
-    fill_patch_major_from_1D_layout<<<num_blocks, thread_per_block>>>(d_rearrange_stacks, d_transformed_stacks);
-    cudaDeviceSynchronize();
-    fetch.stop();
-    printf("rearrange_to_2D_layout takes %.5f\n", fetch.getSeconds());
-}
-
-/*
  * do_block_matching - launch kernel to run block matching
  */
 void Bm3d::do_block_matching(uchar* input_image) {
     // determine how many threads we need to spawn
     Stopwatch bm_time;
     bm_time.start();
-    printf("total_ref_patches %d\n", total_ref_patches);
     const int total_num_threads = total_ref_patches;
     const int threads_per_block = 512;
     const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
-    printf("total_num_threads %d num_block %d\n", total_ref_patches, num_blocks);
     block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack, input_image);
     cudaDeviceSynchronize();
     bm_time.stop();
