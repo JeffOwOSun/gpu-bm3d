@@ -81,7 +81,7 @@ __global__ void reduction(
     // one pixel per thread
     const uint pixel_id = blockIdx.x * blockDim.x + threadIdx.x;
     const int patch_size = cu_const_params.patch_size;
-    const int norm_factor = cu_const_params.max_group_size * patch_size * patch_size
+    const int norm_factor = cu_const_params.max_group_size * patch_size * patch_size;
     // if (!pixel_id) printf("numerator/denominator of pixel %u is %f %f\n", pixel_id, numerator[pixel_id], denominator[pixel_id]);
     output[pixel_id] = (uchar)(numerator[pixel_id] / denominator[pixel_id] / norm_factor);
     // printf("output of pixel %u is %u\n", pixel_id, output[pixel_id]);

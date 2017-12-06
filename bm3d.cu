@@ -84,11 +84,11 @@ __global__ void hard_filter(cufftComplex *d_transformed_stacks, float *d_weight)
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
     }
+    int patch_size = cu_const_params.patch_size;
     int non_zero = 0;
     float threshold = cu_const_params.lambda_3d * cu_const_params.lambda_3d *
-                      cu_const_params.sigma * cu_const_params.sigma;
+                      cu_const_params.sigma * cu_const_params.sigma * patch_size * patch_size * cu_const_params.max_group_size;
     // printf("Threshold %f\n", threshold);
-    int patch_size = cu_const_params.patch_size;
     int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
 
     float x, y, val;
@@ -118,6 +118,7 @@ __global__ void get_wiener_coef(cufftComplex *d_rearrange_stacks, float *d_weigh
     if (group_id >= cu_const_params.total_ref_patches) {
         return;
     }
+
 }
 
 /*
