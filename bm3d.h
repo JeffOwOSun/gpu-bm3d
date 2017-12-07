@@ -95,7 +95,7 @@ public:
 
     void test_arrange_block(uchar*);
 
-    void do_block_matching(uchar*);
+    void do_block_matching(uchar*, const uint);
 
     void do_aggregation(float*);
 

@@ -305,7 +305,7 @@ void Bm3d::denoise(uchar *src_image,
  */
 void Bm3d::denoise_fst_step() {
     //Block matching, each thread maps to a ref patch
-    do_block_matching(d_noisy_image);
+    do_block_matching(d_noisy_image, h_fst_step_params.distance_threshold_1);
 
     //gather patches
     arrange_block(d_noisy_image);
@@ -335,7 +335,7 @@ void Bm3d::denoise_fst_step() {
  */
 void Bm3d::denoise_2nd_step() {
     //Block matching estimate image, each thread maps to a ref patch
-    do_block_matching(d_denoised_image);
+    do_block_matching(d_denoised_image, h_fst_step_params.distance_threshold_2);
     //gather patches for estimate image
     arrange_block(d_denoised_image);
     // perform 3d transform for estimate groups
@@ -412,7 +412,7 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     // // call our block matching magic
     // block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
 
-    do_block_matching(input_image);
+    do_block_matching(input_image, h_fst_step_params.distance_threshold_1);
 
     Q *h_stacks = (Q *)malloc(sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
     cudaMemcpy(h_stacks, d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyDeviceToHost);
@@ -549,14 +549,22 @@ void Bm3d::test_arrange_block(uchar *input_data) {
 /*
  * do_block_matching - launch kernel to run block matching
  */
-void Bm3d::do_block_matching(uchar* input_image) {
+void Bm3d::do_block_matching(
+    uchar* input_image, 
+    const uint distance_threshold
+) {
     // determine how many threads we need to spawn
     Stopwatch bm_time;
     bm_time.start();
     const int total_num_threads = total_ref_patches;
     const int threads_per_block = 512;
     const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
-    block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack, input_image);
+    block_matching<<<num_blocks, threads_per_block>>>(
+        d_stacks, 
+        d_num_patches_in_stack, 
+        input_image,
+        distance_threshold
+    );
     cudaDeviceSynchronize();
     bm_time.stop();
     printf("Block Matching: %f\n", bm_time.getSeconds());
