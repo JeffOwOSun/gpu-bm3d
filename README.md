@@ -111,6 +111,18 @@ Since GHC machine doesn't have opencv package and the version of opencv on lated
 - Week 4: Profile the implementation to find out bottlenecks. Optimize memory access and reduce extraneous communication.~~
 - Week 5: Analyze performance with open source implementation and write reports.
 
+## Final Report Outline
+1. Results to present:
+    1. PSNR
+    2. compare with opencv and bm3d-gpu
+    3. problem size!
+    4. break down chart (initialization, steps, blabla)
+    5. Block matching demonstration
+2. Experiments
+    1. 2d+1d -> 3d
+    2. pre computation
+    3. thresholding.
+    4. per-thread -> per-block allocation
 
 
 
