@@ -23,9 +23,9 @@ struct Params
     Params(unsigned int searching_window_size= 32,
            unsigned int patch_size = 8,
            unsigned int max_group_size = 8,
-           unsigned int distance_threshold_1 = 2500,
-           unsigned int distance_threshold_2 = 400,
-           unsigned int stripe = 3,
+           unsigned int distance_threshold_1 = 2500 * 8 * 8,
+           unsigned int distance_threshold_2 = 400 * 8 * 8,
+           unsigned int stripe = 4,
            float sigma = 20,
            float lambda_3d = 2.7f,
            float beta = 2.0f) :

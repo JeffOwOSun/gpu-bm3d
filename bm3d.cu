@@ -190,6 +190,7 @@ void Bm3d::set_2nd_step_param() {
 void Bm3d::set_device_param(uchar* src_image) {
     total_patches = (h_width - h_fst_step_params.patch_size + 1) * (h_height - h_fst_step_params.patch_size + 1);
     total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
+    printf("total ref patches %d", total_ref_patches);
     // copy original image to cuda
     const uint size = h_width * h_height;
     cudaMalloc(&d_noisy_image, sizeof(uchar) * h_channels * size);
