@@ -94,7 +94,7 @@ int main(int argc, char** argv)
     // Launch BM3D
     Bm3d bm3d;
     bm3d.set_up_realtime(image.width(), image.height(), channels);
-    for (int i=0;i<10;i++) {
+    for (int i=0;i<0;i++) {
 
         bm3d.realtime_denoise(image.data(), image2.data());
         // bm3d.denoise(image.data(),

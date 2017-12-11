@@ -190,7 +190,6 @@ void Bm3d::set_2nd_step_param() {
 void Bm3d::set_device_param() {
     total_patches = (h_width - h_fst_step_params.patch_size + 1) * (h_height - h_fst_step_params.patch_size + 1);
     total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
-    printf("total ref patches %d", total_ref_patches);
     // copy original image to cuda
     const uint size = h_width * h_height;
     cudaMalloc(&d_noisy_image, sizeof(uchar) * h_channels * size);
@@ -254,8 +253,8 @@ void Bm3d::clean_up_buffer() {
     // clean up buffer
     cudaMemset(d_numerator, 0, sizeof(float)*h_width*h_height);
     cudaMemset(d_denominator, 0, sizeof(float)*h_width*h_height);
-    cudaMemset(d_stacks, 0, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
-    cudaMemset(d_num_patches_in_stack, 0, sizeof(uint) * total_ref_patches);
+    // cudaMemset(d_stacks, 0, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
+    // cudaMemset(d_num_patches_in_stack, 0, sizeof(uint) * total_ref_patches);
     cudaMemset(d_transformed_stacks, 0, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
     
     cudaMemset(d_weight, 0, sizeof(float) * total_ref_patches);
@@ -281,6 +280,7 @@ void Bm3d::realtime_denoise(uchar *src_image,
     copy_image_to_device(src_image);
     clean_up_buffer();
     denoise_fst_step();
+    cudaMemset(d_transformed_stacks, 0, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
     denoise_2nd_step();
     cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * h_width * h_height, cudaMemcpyDeviceToHost);
 }
@@ -356,19 +356,9 @@ void Bm3d::denoise_fst_step() {
         fprintf(stderr, "CUFFT error: 3D inverse failed");
         return;
     }
-    cudaError_t code = cudaGetLastError();
-    if (code != cudaSuccess) {
-        fprintf(stderr, "Cuda error: %s\n", cudaGetErrorString(code));
-        return;
-    }
     // Need to normalize 3D inverse result by dividing patch_size * patch_size
     // aggregate to single image by writing into buffer
     do_aggregation(d_weight);
-    code = cudaGetLastError();
-    if (code != cudaSuccess) {
-        fprintf(stderr, "After Cuda error: %s\n", cudaGetErrorString(code));
-        return;
-    }
 }
 
 /*
@@ -539,7 +529,7 @@ void Bm3d::arrange_block(uchar* input_data) {
     fill_patch_major_from_source<<<num_blocks, thread_per_block>>>(d_stacks, d_num_patches_in_stack, input_data, d_transformed_stacks);
     cudaDeviceSynchronize();
     arrange.stop();
-    printf("Arrange block takes %f\n", arrange.getSeconds());
+    // printf("Arrange block takes %f\n", arrange.getSeconds());
 }
 
 void Bm3d::test_arrange_block(uchar *input_data) {
@@ -593,28 +583,53 @@ void Bm3d::test_arrange_block(uchar *input_data) {
     }
 }
 
+void Bm3d::test_aggregation(
+    uchar *src_image,
+    uint width,
+    uint height,
+    uchar *dst_image) {
+
+    // set environmental variables
+    h_width = width;
+    h_height = height;
+    h_channels = 1;
+    set_device_param();
+    copy_image_to_device(src_image);
+
+    // step 0: block matching
+    do_block_matching(src_image, h_fst_step_params.distance_threshold_1);
+
+    // step 1: arrange the data into stacks of pixels
+    arrange_block(d_noisy_image);
+
+    // step 2: fill the weights with dummy values;
+    float *weights = (float*)malloc(total_ref_patches * sizeof(float));
+    for (int i = 0; i < total_ref_patches; ++i) {
+        weights[i] = i % 32 + 1;
+    }
+    cudaMemcpy(d_weight, weights, sizeof(float) * total_ref_patches, cudaMemcpyHostToDevice);
+
+    // step 3: do aggregation
+    do_aggregation(d_weight);
+
+    const uint num_pixels = h_width * h_height;
+    cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
+}
+
 /*
  * do_block_matching - launch kernel to run block matching
  */
-void Bm3d::do_block_matching(
-    uchar* input_image, 
-    const uint distance_threshold
-) {
+void Bm3d::do_block_matching(uchar* input_image, const uint distance_threshold) {
     // determine how many threads we need to spawn
     Stopwatch bm_time;
     bm_time.start();
     const int total_num_threads = total_ref_patches;
     const int threads_per_block = 512;
     const int num_blocks = (total_num_threads + threads_per_block - 1) / threads_per_block;
-    block_matching<<<num_blocks, threads_per_block>>>(
-        d_stacks, 
-        d_num_patches_in_stack, 
-        input_image,
-        distance_threshold
-    );
+    block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack, input_image, distance_threshold);
     cudaDeviceSynchronize();
     bm_time.stop();
-    printf("Block Matching: %f\n", bm_time.getSeconds());
+    // printf("Block Matching: %f\n", bm_time.getSeconds());
 }
 
 void Bm3d::hard_threshold() {
@@ -625,7 +640,7 @@ void Bm3d::hard_threshold() {
     hard_filter<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_weight);
     cudaDeviceSynchronize();
     hard_threshold.stop();
-    printf("Hard threshold takes %.5f\n", hard_threshold.getSeconds());
+    // printf("Hard threshold takes %.5f\n", hard_threshold.getSeconds());
 }
 
 void Bm3d::cal_wiener_coef() {
@@ -636,7 +651,7 @@ void Bm3d::cal_wiener_coef() {
     get_wiener_coef<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_wien_coef);
     cudaDeviceSynchronize();
     wiener_coef.stop();
-    printf("Get wiener takes %.5f\n", wiener_coef.getSeconds());
+    // printf("Get wiener takes %.5f\n", wiener_coef.getSeconds());
 }
 
 void Bm3d::apply_wien_filter() {
@@ -647,5 +662,28 @@ void Bm3d::apply_wien_filter() {
     apply_wiener_coef<<<num_blocks, thread_per_block>>>(d_transformed_stacks, d_wien_coef, d_wien_weight);
     cudaDeviceSynchronize();
     apply_wiener.stop();
-    printf("Apply wiener takes %.5f\n", apply_wiener.getSeconds());
+    // printf("Apply wiener takes %.5f\n", apply_wiener.getSeconds());
+}
+
+void Bm3d::do_aggregation(float* weight) {
+    Stopwatch ag_time;
+    ag_time.start();
+    const uint num_threads_per_block = 512;
+    // step 1: do aggregation, one thread per stack
+    uint num_blocks = (total_ref_patches + num_threads_per_block - 1) / num_threads_per_block;
+    aggregate<<<num_blocks, num_threads_per_block>>>(
+        d_stacks,
+        d_num_patches_in_stack,
+        weight,
+        d_transformed_stacks,
+        d_numerator,
+        d_denominator
+    );
+    // step 2: reduction. calculate how many pixels
+    const uint num_pixels = h_width * h_height;
+    num_blocks = (num_pixels + num_threads_per_block - 1) / num_threads_per_block;
+    reduction<<<num_blocks, num_threads_per_block>>>(d_numerator, d_denominator, d_denoised_image, num_pixels);
+    cudaDeviceSynchronize();
+    ag_time.stop();
+    // printf("Aggregation: %f\n", ag_time.getSeconds());
 }
