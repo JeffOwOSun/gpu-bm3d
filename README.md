@@ -135,6 +135,7 @@ For an example 512x512 input, a total of [(512 - 8 + 1)/3]^2 = 28561 *reference 
 Every CUDA thread will be given one *reference patch*. Within each thread, a local window of 64 by 64 around the reference patch is searched for *q patches* that are close match to the *reference patch*. The distance metric we use in matching is the L2-distance in pixel space. This is an approximation to the original paper, where a 2D transformation and a hard-thresholding is applied before applying L2-distance in frequency space. It's much simpler in computation and easier for implementation.
 
 ![block matching image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/lena_eyebrow.png)
+*An image showing three q_patches in a group. The black frame denotes the reference patch*
 
 A maximum of 8 *q patches* are kept for each *reference patch*. After the matching, a *stack* of *num_ref_patch x max_num_patch_in_group* patches is produced, each row containing the *max_num_patch_in_group* closest *q patches* to the respective *reference patch*.
 
@@ -148,6 +149,11 @@ After the accumulation is done, a reduction step, consisting of dividing every *
 
 ## Performance
 
+### Running time breakdown
+![running time breakdown image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/running_time_breakdown.png)
+*The bar chart of running time breakdown. Our implementation strips away unnecessary computation time in transformation. Note the difference in parallelization scheme results in difference in block matching and aggregation time*
+
+### Scalability with image size
 
 
 
