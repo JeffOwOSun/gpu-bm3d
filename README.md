@@ -146,7 +146,7 @@ For every pixel *p* in the stack, we use *atomic_add* statement to increment the
 After the accumulation is done, a reduction step, consisting of dividing every *numerator* entry by *denominator* entry is applied to normalize the pixel values.
 
 ## Results Showcase
-![showcase of lenas results here image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/lenas.png)
+![showcase of lenas results here image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/lenas.jpg)
 *Left: Original Lena; Mid: With noise variance=20; Right: Denoised Lena*
 
 ## Performance Analysis
