@@ -25,7 +25,7 @@ struct Params
            unsigned int max_group_size = 8,
            unsigned int distance_threshold_1 = 2500,
            unsigned int distance_threshold_2 = 400,
-           unsigned int stripe = 3,
+           unsigned int stripe = 4,
            float sigma = 20,
            float lambda_3d = 2.7f,
            float beta = 2.0f) :

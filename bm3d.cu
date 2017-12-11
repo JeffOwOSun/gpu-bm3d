@@ -197,7 +197,6 @@ void Bm3d::set_device_param() {
     cudaMalloc(&d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
     cudaMalloc(&d_num_patches_in_stack, sizeof(uint) * total_ref_patches);
     cudaMalloc(&d_transformed_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
-    cudaMalloc(&d_weight, sizeof(float) * total_ref_patches);
 
     cudaMalloc(&d_numerator, sizeof(float) * size);
     cudaMalloc(&d_denominator, sizeof(float) * size);
@@ -248,6 +247,41 @@ void Bm3d::free_device_params() {
     if (d_noisy_image) {
         cudaFree(d_noisy_image);
     }
+}
+
+void Bm3d::clean_up_buffer() {
+    // clean up buffer
+    cudaMemset(d_numerator, 0, sizeof(float)*h_width*h_height);
+    cudaMemset(d_denominator, 0, sizeof(float)*h_width*h_height);
+    cudaMemset(d_stacks, 0, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
+    cudaMemset(d_num_patches_in_stack, 0, sizeof(uint) * total_ref_patches);
+    cudaMemset(d_transformed_stacks, 0, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+    
+    cudaMemset(d_weight, 0, sizeof(float) * total_ref_patches);
+    cudaMemset(d_wien_coef, 0, sizeof(float) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+    cudaMemset(d_wien_weight, 0, sizeof(float) * total_ref_patches);
+
+    cudaMemset(d_denoised_image, 0, sizeof(uchar) * h_width*h_height);
+}
+
+void Bm3d::set_up_realtime(int width, int height, int channels) {
+    h_width = width;
+    h_height = height;
+    h_channels = channels;
+    set_device_param();
+}
+
+/*
+ * need to call set_up_realtime first
+ */
+void Bm3d::realtime_denoise(uchar *src_image,
+                            uchar *dst_image
+                            ) {
+    copy_image_to_device(src_image);
+    clean_up_buffer();
+    denoise_fst_step();
+    denoise_2nd_step();
+    cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * h_width * h_height, cudaMemcpyDeviceToHost);
 }
 
 /*
@@ -321,9 +355,19 @@ void Bm3d::denoise_fst_step() {
         fprintf(stderr, "CUFFT error: 3D inverse failed");
         return;
     }
+    cudaError_t code = cudaGetLastError();
+    if (code != cudaSuccess) {
+        fprintf(stderr, "Cuda error: %s\n", cudaGetErrorString(code));
+        return;
+    }
     // Need to normalize 3D inverse result by dividing patch_size * patch_size
     // aggregate to single image by writing into buffer
     do_aggregation(d_weight);
+    code = cudaGetLastError();
+    if (code != cudaSuccess) {
+        fprintf(stderr, "After Cuda error: %s\n", cudaGetErrorString(code));
+        return;
+    }
 }
 
 /*
@@ -357,6 +401,11 @@ void Bm3d::denoise_2nd_step() {
     }
     // aggregate to single image by writing into buffer
     do_aggregation(d_wien_weight);
+    cudaError_t code = cudaGetLastError();
+    if (code != cudaSuccess) {
+        fprintf(stderr, "Cuda error: %s\n", cudaGetErrorString(code));
+        return;
+    }
 }
 
 void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
@@ -387,7 +436,8 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     h_width = width;
     h_height = height;
     h_channels = 1;
-    set_device_param(input_image);
+    set_device_param();
+    copy_image_to_device(input_image);
 
     printf("width, height: %d %d\n", width, height);
 
@@ -535,7 +585,7 @@ void Bm3d::test_arrange_block(uchar *input_data) {
         }
         int z = i - x*(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
         int index = idx2(x+(z%h_fst_step_params.patch_size), y+(z/h_fst_step_params.patch_size), h_width);
-        printf("Transform: %.3f vs Original: %zu\n",
+        printf("Transform: %.3f vs Original: %d\n",
             h_data[i],
             input_data[index]
             );

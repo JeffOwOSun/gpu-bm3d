@@ -51,6 +51,7 @@ __global__ void aggregate(
         cu_const_params.image_height);
     // first calculate which stack I'm responsible of
     const uint tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= cu_const_params.total_ref_patches) return;
     const Q* const my_stack = &g_stacks[tid * max_num_patches_in_stack];
 
     const float my_weight = g_num_nonzero_coeff[tid];
@@ -76,10 +77,12 @@ __global__ void aggregate(
 __global__ void reduction(
     float *numerator, //IN: numerator of image size
     float *denominator, //IN: denominator of image size
-    uchar *output //OUT: output image
+    uchar *output, //OUT: output image
+    const uint num_pixels
 ) {
     // one pixel per thread
     const uint pixel_id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (pixel_id >= num_pixels) return;
     const int patch_size = cu_const_params.patch_size;
     const int norm_factor = cu_const_params.max_group_size * patch_size * patch_size;
     // if (!pixel_id) printf("numerator/denominator of pixel %u is %f %f\n", pixel_id, numerator[pixel_id], denominator[pixel_id]);
@@ -101,14 +104,19 @@ void Bm3d::do_aggregation(float* weight) {
         d_numerator,
         d_denominator
     );
-
     // step 2: reduction. calculate how many pixels
     const uint num_pixels = h_width * h_height;
     num_blocks = (num_pixels + num_threads_per_block - 1) / num_threads_per_block;
-    reduction<<<num_blocks, num_threads_per_block>>>(d_numerator, d_denominator, d_denoised_image);
+    reduction<<<num_blocks, num_threads_per_block>>>(d_numerator, d_denominator, d_denoised_image, num_pixels);
     cudaDeviceSynchronize();
     ag_time.stop();
     printf("Aggregation: %f\n", ag_time.getSeconds());
+    cudaError_t code = cudaGetLastError();
+    if (code != cudaSuccess) {
+        fprintf(stderr, "Agg error: %s\n", cudaGetErrorString(code));
+        return;
+    }
+
 }
 
 void Bm3d::test_aggregation(
@@ -121,7 +129,8 @@ void Bm3d::test_aggregation(
     h_width = width;
     h_height = height;
     h_channels = 1;
-    set_device_param(src_image);
+    set_device_param();
+    copy_image_to_device(src_image);
 
     // step 0: block matching
     do_block_matching(src_image);

@@ -54,7 +54,8 @@ __global__ void block_matching(
     assert(image_dim.x >= patch_dim && image_dim.y >= patch_dim);
     // step 1: do pointer arithmetic to find out the position of this reference
     // tid is the id of reference patch
-	uint tid = blockIdx.x * blockDim.x + threadIdx.x;
+    uint tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= cu_const_params.total_ref_patches) return; 
     uint2 num_ref_patch = make_uint2(
         image_dim.x > patch_dim ?
         (image_dim.x - patch_dim) / ref_stride + 1 :
@@ -85,6 +86,7 @@ __global__ void block_matching(
 
     Q* my_stack = &g_stacks[tid * max_num_patches_in_stack];
     uint &stack_count = g_num_patches_in_stack[tid];
+    stack_count = 0;
     for (uint qy = start_q.y;
          qy <= image_dim.y - patch_dim && qy <= start_ref.y + match_radius;
          qy += match_stride) {

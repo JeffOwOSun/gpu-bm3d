@@ -93,17 +93,21 @@ int main(int argc, char** argv)
 
     // Launch BM3D
     Bm3d bm3d;
-    bm3d.denoise(image.data(),
-             image2.data(),
-             image.width(),
-             image.height(),
-             sigma,
-             channels,
-             step,
-             verbose);
-    image2 = image2.get_channel(0);
-    image2.save(output_file.c_str());
+    bm3d.set_up_realtime(image.width(), image.height(), channels);
+    for (int i=0;i<10;i++) {
 
+        bm3d.realtime_denoise(image.data(), image2.data());
+        // bm3d.denoise(image.data(),
+        //          image2.data(),
+        //          image.width(),
+        //          image.height(),
+        //          sigma,
+        //          channels,
+        //          step,
+        //          verbose);
+        image2 = image2.get_channel(0);
+        image2.save(output_file.c_str());
+    }
     // testing block_matching
     // bm3d.test_block_matching(image.data(), image.width(), image.height());
     // image.save("test_block_matching.png");

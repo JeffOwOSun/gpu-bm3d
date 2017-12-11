@@ -67,10 +67,7 @@ public:
 
     void set_device_param();
 
-    void copy_image_to_device(uchar *src_image,
-                              int width,
-                              int height,
-                              int channels);
+    void copy_image_to_device(uchar *src_image);
 
     void free_device_params();
 
@@ -104,6 +101,14 @@ public:
     void cal_wiener_coef();
 
     void apply_wien_filter();
+
+    void set_up_realtime(int width, int height, int channels);
+
+    void realtime_denoise(uchar *src_image,
+                          uchar *dst_image
+                         );
+                         
+    void clean_up_buffer();
 };
 
 struct GlobalConstants {
