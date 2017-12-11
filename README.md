@@ -147,7 +147,16 @@ We use two image-sized global buffers, *numerator* and *denominator* for storage
 For every pixel *p* in the stack, we use *atomic_add* statement to increment the corresponding *numerator* entry by *weight x p* and *denominator* by *weight*.
 After the accumulation is done, a reduction step, consisting of dividing every *numerator* entry by *denominator* entry is applied to normalize the pixel values.
 
-## Performance
+## Performance Analysis
+
+### A different parallelization assignment
+The *cuda_bm3d* implementation assigns every *reference patch* to a thread block in GPU, where as we assign a single thread a block of patches in both block matching and aggregation.
+
+![block matching time versus grid search dimension image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/block_matching_scaling.png)
+*block matching time of different job assignment scheme versus grid search dimension*
+
+![block matching time versus number of total reference patches image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/block_matching_num_ref_patch.png)
+*block matching time of different job assignment scheme versus number of total reference patches (adjusted by setting the reference patch stride)*
 
 ### Running time breakdown
 ![running time breakdown image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/running_time_breakdown.png)
