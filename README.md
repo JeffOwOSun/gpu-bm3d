@@ -125,7 +125,28 @@ Since GHC machine doesn't have opencv package and the version of opencv on lated
     4. per-thread -> per-block allocation
 
 
+## Approach
 
+### Block matching
+We first divide the entire noisy image into a set of overlapping *reference patches*. This is done in a sliding-window manner, each patch has size of 8x8, with a stride of 3 by default. The last column and row are guaranteed to generate references, even if the dimensions of image may not be divisible by 3. 
+
+For an example 512x512 input, a total of [(512 - 8 + 1)/3]^2 = 28561 *reference patches* are generated.
+
+Every CUDA thread will be given one *reference patch*. Within each thread, a local window of 64 by 64 around the reference patch is searched for *q patches* that are close match to the *reference patch*. The distance metric we use in matching is the L2-distance in pixel space. This is an approximation to the original paper, where a 2D transformation and a hard-thresholding is applied before applying L2-distance in frequency space. It's much simpler in computation and easier for implementation.
+
+[block matching image here]
+
+A maximum of 8 *q patches* are kept for each *reference patch*. After the matching, a *stack* of *num_ref_patch x max_num_patch_in_group* patches is produced, each row containing the *max_num_patch_in_group* closest *q patches* to the respective *reference patch*.
+
+### Aggregate
+After the inverse transformation, the aggregation step returns the filtered patches in the stacks back to their original positions. Because there are overlaps in the patch generation, we keep a weight for each pixel and normalize it.
+
+Each CUDA thread is assigned one stack of patches. From the previous step, a weight of *1/num_nonzero_coeff* is calculated for every stack. 
+We use two image-sized global buffers, *numerator* and *denominator* for storage of pixel value and normalization factor.
+For every pixel *p* in the stack, we use *atomic_add* statement to increment the corresponding *numerator* entry by *weight x p* and *denominator* by *weight*.
+After the accumulation is done, a reduction step, consisting of dividing every *numerator* entry by *denominator* entry is applied to normalize the pixel values.
+
+## Performance
 
 
 
