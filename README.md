@@ -111,10 +111,60 @@ Since GHC machine doesn't have opencv package and the version of opencv on lated
 - Week 4: Profile the implementation to find out bottlenecks. Optimize memory access and reduce extraneous communication.~~
 - Week 5: Analyze performance with open source implementation and write reports.
 
+## Final Report Outline
+1. Results to present:
+    1. PSNR
+    2. compare with opencv and bm3d-gpu
+    3. problem size!
+    4. break down chart (initialization, steps, blabla)
+    5. Block matching demonstration
+2. Experiments
+    1. 2d+1d -> 3d
+    2. pre computation
+    3. thresholding.
+    4. per-thread -> per-block allocation
 
 
+## Approach
 
+### Block matching
+We first divide the entire noisy image into a set of overlapping *reference patches*. This is done in a sliding-window manner, each patch has size of 8x8, with a stride of 3 by default. The last column and row are guaranteed to generate references, even if the dimensions of image may not be divisible by 3. 
 
+For an example 512x512 input, a total of [(512 - 8 + 1)/3]^2 = 28561 *reference patches* are generated.
+
+Every CUDA thread will be given one *reference patch*. Within each thread, a local window of 64 by 64 around the reference patch is searched for *q patches* that are close match to the *reference patch*. The distance metric we use in matching is the L2-distance in pixel space. This is an approximation to the original paper, where a 2D transformation and a hard-thresholding is applied before applying L2-distance in frequency space. It's much simpler in computation and easier for implementation.
+
+![block matching image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/lena_eyebrow.png)
+*An image showing three q_patches in a group. The black frame denotes the reference patch*
+
+A maximum of 8 *q patches* are kept for each *reference patch*. After the matching, a *stack* of *num_ref_patch x max_num_patch_in_group* patches is produced, each row containing the *max_num_patch_in_group* closest *q patches* to the respective *reference patch*.
+
+### Aggregate
+After the inverse transformation, the aggregation step returns the filtered patches in the stacks back to their original positions. Because there are overlaps in the patch generation, we keep a weight for each pixel and normalize it.
+
+Each CUDA thread is assigned one stack of patches. From the previous step, a weight of *1/num_nonzero_coeff* is calculated for every stack. 
+We use two image-sized global buffers, *numerator* and *denominator* for storage of pixel value and normalization factor.
+For every pixel *p* in the stack, we use *atomic_add* statement to increment the corresponding *numerator* entry by *weight x p* and *denominator* by *weight*.
+After the accumulation is done, a reduction step, consisting of dividing every *numerator* entry by *denominator* entry is applied to normalize the pixel values.
+
+## Performance Analysis
+
+### A different parallelization assignment
+The *cuda_bm3d* implementation assigns every *reference patch* to a thread block in GPU, where as we assign a single thread a block of patches in both block matching and aggregation.
+
+![block matching time versus grid search dimension image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/block_matching_scaling.png)
+
+*block matching time of different job assignment scheme versus grid search dimension. Here the total number of reference patches is 28561*
+
+![block matching time versus number of total reference patches image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/block_matching_num_ref_patch.png)
+
+*block matching time of different job assignment scheme versus number of total reference patches (adjusted by setting the reference patch stride). The matching scaling here is set to be 32 by 32*
+
+### Running time breakdown
+![running time breakdown image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/running_time_breakdown.png)
+*The bar chart of running time breakdown. Our implementation strips away unnecessary computation time in transformation. Note the difference in parallelization scheme results in difference in block matching and aggregation time*
+
+### Scalability with image size
 
 
 

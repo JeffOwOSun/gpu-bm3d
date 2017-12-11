@@ -133,7 +133,7 @@ void Bm3d::test_aggregation(
     copy_image_to_device(src_image);
 
     // step 0: block matching
-    do_block_matching(src_image);
+    do_block_matching(src_image, h_fst_step_params.distance_threshold_1);
 
     // step 1: arrange the data into stacks of pixels
     arrange_block(d_noisy_image);
