@@ -65,7 +65,7 @@ public:
 
     void set_2nd_step_param();
 
-    void set_device_param(uchar* src_image);
+    void set_device_param();
 
     void copy_image_to_device(uchar *src_image,
                               int width,
@@ -122,7 +122,6 @@ struct GlobalConstants {
     int image_channels;
     int image_width;
     int image_height;
-    uchar* image_data;
 };
 
 #endif

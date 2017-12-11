@@ -187,13 +187,12 @@ void Bm3d::set_2nd_step_param() {
 /*
  * Set device params and allocate device memories
  */
-void Bm3d::set_device_param(uchar* src_image) {
+void Bm3d::set_device_param() {
     total_patches = (h_width - h_fst_step_params.patch_size + 1) * (h_height - h_fst_step_params.patch_size + 1);
     total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
     // copy original image to cuda
     const uint size = h_width * h_height;
     cudaMalloc(&d_noisy_image, sizeof(uchar) * h_channels * size);
-    cudaMemcpy(d_noisy_image, src_image, sizeof(uchar) * h_channels * size, cudaMemcpyHostToDevice);
 
     cudaMalloc(&d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
     cudaMalloc(&d_num_patches_in_stack, sizeof(uint) * total_ref_patches);
@@ -212,7 +211,6 @@ void Bm3d::set_device_param(uchar* src_image) {
     GlobalConstants params;
     params.image_width = h_width;
     params.image_height = h_height;
-    params.image_data = d_noisy_image;
     params.image_channels = h_channels;
 
     params.patch_size = h_fst_step_params.patch_size;
@@ -241,12 +239,9 @@ void Bm3d::set_device_param(uchar* src_image) {
 /*
  * Initialize image stats and allocate memory
  */
-void Bm3d::copy_image_to_device(uchar *src_image,
-                                int width,
-                                int height,
-                                int channels) {
+void Bm3d::copy_image_to_device(uchar *src_image) {
     // set width and height
-
+    cudaMemcpy(d_noisy_image, src_image, sizeof(uchar) * h_channels * h_height * h_width, cudaMemcpyHostToDevice);
 }
 
 void Bm3d::free_device_params() {
@@ -269,13 +264,16 @@ void Bm3d::denoise(uchar *src_image,
     Stopwatch init_time;
     Stopwatch first_step;
     Stopwatch sed_step;
+
     h_width = width;
     h_height = height;
     h_channels = channels;
 
     init_time.start();
-    set_device_param(src_image);
+    set_device_param();
     init_time.stop();
+
+    copy_image_to_device(src_image);
 
     first_step.start();
     denoise_fst_step();
@@ -296,8 +294,6 @@ void Bm3d::denoise(uchar *src_image,
 
     const uint num_pixels = h_width * h_height;
     cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
-
-    free_device_params();
 }
 
 /*
