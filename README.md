@@ -153,10 +153,12 @@ After the accumulation is done, a reduction step, consisting of dividing every *
 The *cuda_bm3d* implementation assigns every *reference patch* to a thread block in GPU, where as we assign a single thread a block of patches in both block matching and aggregation.
 
 ![block matching time versus grid search dimension image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/block_matching_scaling.png)
-*block matching time of different job assignment scheme versus grid search dimension*
+
+*block matching time of different job assignment scheme versus grid search dimension. Here the total number of reference patches is 28561*
 
 ![block matching time versus number of total reference patches image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/block_matching_num_ref_patch.png)
-*block matching time of different job assignment scheme versus number of total reference patches (adjusted by setting the reference patch stride)*
+
+*block matching time of different job assignment scheme versus number of total reference patches (adjusted by setting the reference patch stride). The matching scaling here is set to be 32 by 32*
 
 ### Running time breakdown
 ![running time breakdown image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/running_time_breakdown.png)
