@@ -4,7 +4,7 @@ GPU-BM3D
 
 URL: [io.jowos.moe/gpu-bm3d](io.jowos.moe/gpu-bm3d)
 
-# Report
+# Final Report
 
 ## Summary
 
@@ -68,17 +68,6 @@ Noisy | Reference | Our Implementation
 :---: | :---: | :---:
 22.11 | 33.05 | 32.17
 
-We also apply our algorithm onto example videos. 
-We used OpenCV for decoding video and displaying denoised result.
-
-<div style="text-align:center; width=100%;">
-  <img alt="3D matrix data layout" src="https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/original.gif"/>
-  <img alt="4D matrix data layout" src="https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/denoised.gif"/>
-  <p><em>
-    Left: Noisy Video. Right: Denoised Video
-  </em></p>
-</div> 
-
 ### A different parallelization assignment
 We set out to explore a different work assignment approach from the reference open-source implementation.
 The *cuda_bm3d* implementation assigns every *reference patch* to a thread block in GPU, where as we assign a single thread a block of patches in both block matching and aggregation.
@@ -122,10 +111,20 @@ The algorithm runs the aforementioned 3-step procedure twice. In the first run, 
 Since the BM3D algorithm is split into 3 steps. Each step depends on the result from the last step so identifying the parallel options can be difficult. To achieve good computation performance, we also may consider relax the algorithm a little bit to test the quality. There will be a quality and computation performance trade off by choosing different hyper parameters. Also copying image data back and forth between cpu and gpu is very expensive, so a clean and efficient implementation to hide memory latency is needed to achieve realtime performance. We hope to apply what we learnt from 15-618 to these state-of-art algorithms to improve our abilities to break down problems and parallel computations to achieve good performance. This will also horn our skills on writing efficient GPU code
 
 ## Resources
+We also apply our algorithm onto example videos. 
+We used OpenCV for decoding video and displaying denoised result.
+
+<div style="text-align:center; width=100%;">
+  <img alt="3D matrix data layout" src="https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/original.gif"/>
+  <img alt="4D matrix data layout" src="https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/denoised.gif"/>
+  <p><em>
+    Left: Noisy Video. Right: Denoised Video
+  </em></p>
+</div> 
 
 ### Hardware
 
-GTX1080 in the GHC machines.
+i7-8700K with 32GB of RAM and GTX1080 Ti
 
 ### Software
 
