@@ -149,6 +149,12 @@ After the accumulation is done, a reduction step, consisting of dividing every *
 ![showcase of lenas results here image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/lenas.jpg)
 *Left: Original Lena; Mid: With noise variance=20; Right: Denoised Lena*
 
+We show the PSNR ranking of the paper result and our implementation as below:
+
+Noisy | Reference | Our Implementation
+:---: | :---: | :---:
+22.11 | 33.05 | 32.17
+
 ## Performance Analysis
 
 ### A different parallelization assignment
