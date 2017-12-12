@@ -12,9 +12,9 @@ We implemented the state-of-art image de-noising algorithm, block matching and 3
 
 ## Background
 
-The block matching and 3D filtering (BM3D) algorithm is a novel method for image denoising based on collaborative filtering in transform domain. Since first proposed in 2007, BM3D has been the state-of-the-art until today. The algorithm consists of three stages:
+The block matching and 3D filtering (BM3D) algorithm is a novel method for image denoising based on collaborative filtering in transform domain. Since first proposed in 2007, BM3D has been the state-of-the-art until today. The algorithm consists of two steps each of which has three main stages:
 
-1. **Block Matching** A set of similar patches of the 2D image is grouped into a 3D data array which we call group.
+1. **Block Matching** A set of similar patches of the 2D image is grouped into a 3D data array which we call a group.
 2. **Collaborative Filtering** A 3D transform is applied to the group to produce a sparse representation in transform domain, and filtered. After that, an inverse transformation is carried out to cast the filtered data back into image domain, which is a 3D array again, but noise-free
 3. **Reconstruct the Image** The groups are redistributed into their original positions.
 
