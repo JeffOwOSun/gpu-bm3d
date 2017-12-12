@@ -14,11 +14,11 @@ We implemented the state-of-art image de-noising algorithm, block matching and 3
 
 The block matching and 3D filtering (BM3D) algorithm is a novel method for image denoising based on collaborative filtering in transform domain. Since first proposed in 2007, BM3D has been the state-of-the-art until today. The algorithm consists of two steps each of which has three main stages:
 
-1. **Block Matching** A set of similar patches of the 2D image is grouped into a 3D data array which we call a group.
-2. **Collaborative Filtering** A 3D transform is applied to the group to produce a sparse representation in transform domain, and filtered. After that, an inverse transformation is carried out to cast the filtered data back into image domain, which is a 3D array again, but noise-free
-3. **Reconstruct the Image** The groups are redistributed into their original positions.
+1. **Block Matching** For each reference patch, a set of similar patches of the 2D image is grouped into a 3D data array which we call a group.
+2. **Collaborative Filtering** A 3D transform is applied to the group to produce a sparse representation in transform domain, and filtered. After that, an inverse transformation is carried out to cast the filtered data back into image domain, which is a 3D array again.
+3. **Reconstruct the Image** The patches in each groups are redistributed into their original positions. Each pixel may be updated multiple times at this stage.
 
-The algorithm runs the aforementioned 3-step procedure twice. In the first run, the noisy image is processed with hard thresholding in the sparse transform to produce an original noise-free image. Then with this image as input, the same procedure is carried out with wiener filter instead of hard thresholding. The latter makes the assumption that energy spectrum of the first output is correct, and is more efficient than hard-thresholding.
+The algorithm runs the aforementioned 3-step procedure twice. In the first run, the noisy image is processed with hard thresholding in the sparse transform to produce an estimated image. Then with this image as input, the same procedure is carried out with wiener filter instead of hard thresholding to get wiener coefficient. We then apply the wiener coefficient to the original images. The latter makes the assumption that energy spectrum of the first output is correct, and is more efficient than hard-thresholding.
 
 ![BM3D scheme](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/BM3D-pipeline.png "Scheme of the BM3D algorithm")
 
