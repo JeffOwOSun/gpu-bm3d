@@ -113,6 +113,22 @@ We used OpenCV for decoding video and displaying denoised result.
   </em></p>
 </div> 
 
+## Resources
+
+### Hardware
+
+i7-8700K with 32GB of RAM and GTX1080 Ti
+
+### Software
+
+The serial code to compare: OpenCV
+
+The parallel baseline: [GitHub](https://github.com/DawyD/bm3d-gpu)
+
+## Reference
+
+[BM3D algorithm paper](https://www.cs.tut.fi/~foi/GCF-BM3D/BM3D_TIP_2007.pdf)
+
 # Proposal
 
 ## Summary
