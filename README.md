@@ -121,7 +121,7 @@ A thread-level parallelization can also suffer from contention and waste the sha
 ![running time breakdown image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/running_time_breakdown.png)
 *The bar chart of running time breakdown. Our implementation strips away unnecessary computation time in transformation. Note the difference in parallelization scheme results in difference in block matching and aggregation time*
 
-As detailed in the previous section, the block-matching and aggregation stage performances are doomed due to the per-thread work allocation scheme. However, because we used a 3D transformation in place of two transformaions (2D + 1D), we are able to accelerate transformation time by about 8x.
+As detailed in the previous section, the block-matching and aggregation stage performances are doomed due to the per-thread work allocation scheme. However, because we used a 3D transformation in place of two transformations (2D + 1D), we are able to accelerate transformation time by about 8x.
 
 ### Video denoising
 
