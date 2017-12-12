@@ -32,22 +32,21 @@ CUDA has very fast FFT library for 1D, 2D and 3D transformation. To use the CUDA
 Fast fourier transform is crucial to the BM3D algorithm and we tried different approaches for the transformation. In the original paper and reference implementation, they both separate the 3D transformation into 2D transformation on the patches and 1D transformation across the patches. So we tried this approach first to compare the performance. After the block matching stage, we will have an array of patch indices and also an array to store how many patches in each of the group. We then gather the data from the images according to these indices to form a 3D matrix. 
 
 <div style="text-align:center; width=100%;">
-  <img style="display:inline-block" alt="3D matrix data layout" src="https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/width_major.jpg"/>
+  <img alt="3D matrix data layout" src="https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/width_major.jpg"/>
+  <img alt="4D matrix data layout" src="https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/channel_major.jpg"/>
+  <p><em>
+    Left: The data layout for 3D matrix. Right: The data layout for 4D matrix
+  </em></p>
 </div> 
-
-*The data layout for 3D matrix*
 
 The first dimension is the patch width, the second dimension is the patch height and the third dimension is the patch number. 2D FFT will then transform this array into frequency domain. To perform the 1D transform across patches for each patch pixel location, we need to reorganize the array to form a 4D matrix. 
 
-![4D matrix data layout](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/channel_major.jpg) 
-
-*The data layout for 4D matrix*
 
 The first dimension is the pixel value across patches in the same group, the second dimension is the patch width, the third dimension is the patch height and the fouth dimension is the group. In this way, the values to be transformed will be continuous in memory. We then apply the 1D transform and also the hard thresholding to filter the data. During the hard thresholding, we need to record number of non-zero values for each group as the coefficient for aggregation stage. So we map each thread to a group fo patches so that each thread will work independently.
 
 After thresholding, we apply the inverse 1D transform on the 4D matrix, which will then be reorganized back into 3D matrix for 2D inverse transform. Finally the aggregation step will put the patches back to the original image.
 
-In this approach, we will initialize two CUFFT transform plans, 2D and 1D. 2D transform will be applied in both steps on the original images. To save the computation time, we decide to precompute the 2D transformation for each patch in the original images. After the precomputation, we just fill up the 3D data matrix based on the block matching result. This actually saves the 2D forward transformation computation time. We still need to perform the inverse transformation. In our experiment the time saving is not significant. One batch of transformation on all the image patches only cost $$. Since CUFFT library is highly optimized. Once the plan is created, the actual computation time is very short and not all pathces are needed to be transformed. Thus it isn't worthwhile to precompute the all the transformation in the initialization. In fact, during the experiment, the number of transformation for precomputing all the patches and the inverse transformation of the group patches are different. In a single API call on one plan is not going to cater two needs. So we have two options. One is to create two plans with two batch size parameter for the two cases, but we found creating a CUFFT plan will need 0.2 seconds which is 20% of the total time. We need to create as few plan as possible. Another option is to fix the batch size, so that we have only one plan and call the API several times to perform all the transformations. However, calling the API multiple times will introduce large overhead by lauching kernels. The overhead will scale linearly by number of patches. Also, if we use 2D and 1D transformation, we need to reorganize the data layout between two transformation which will introduce extra computation time.
+In this approach, we will initialize two CUFFT transform plans, 2D and 1D. 2D transform will be applied in both steps on the original images. To save the computation time, we decide to precompute the 2D transformation for each patch in the original images. After the precomputation, we just fill up the 3D data matrix based on the block matching result. This actually saves the 2D forward transformation computation time. We still need to perform the inverse transformation. In our experiment the time saving is not significant. One batch of transformation on all the image patches only cost 0.1s. Since CUFFT library is highly optimized. Once the plan is created, the actual computation time is very short and not all pathces are needed to be transformed. Thus it isn't worthwhile to precompute the all the transformation in the initialization. In fact, during the experiment, the number of transformation for precomputing all the patches and the inverse transformation of the group patches are different. In a single API call on one plan is not going to cater two needs. So we have two options. One is to create two plans with two batch size parameter for the two cases, but we found creating a CUFFT plan will need 0.2 seconds which is 20% of the total time. We need to create as few plan as possible. Another option is to fix the batch size, so that we have only one plan and call the API several times to perform all the transformations. However, calling the API multiple times will introduce large overhead by lauching kernels. The overhead will scale linearly by number of patches. Also, if we use 2D and 1D transformation, we need to reorganize the data layout between two transformation which will introduce extra computation time.
 
 To optimize the above problems, we turn to 3D transformation in the CUFFT library. In this approach, we only need one CUFFT transformation plan since the plan configuration is the same. We can set the batch size to the number of groups so that we only need to call the API once to perform all the transformation. Also, we do not need to change the data layout for the transformation. It turns out the execution of 3D transformation is very fast which taks only 0.006 seconds, 1.5% of the total time.
 
@@ -61,7 +60,7 @@ After the accumulation is done, a reduction step, consisting of dividing every *
 
 ## Results Showcase
 ![showcase of lenas results here image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/lenas.jpg)
-*Left: Original Lena; Mid: With noise variance=20; Right: Denoised Lena*
+*Left: Original Lena. Mid: With noise variance=20. Right: Denoised Lena*
 
 We show the PSNR ranking of the paper result and our implementation as below:
 
@@ -69,7 +68,16 @@ Noisy | Reference | Our Implementation
 :---: | :---: | :---:
 22.11 | 33.05 | 32.17
 
-## Performance Analysis
+We also apply our algorithm onto example videos. 
+We used OpenCV for decoding video and displaying denoised result.
+
+<div style="text-align:center; width=100%;">
+  <img alt="3D matrix data layout" src="https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/original.gif"/>
+  <img alt="4D matrix data layout" src="https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/denoised.gif"/>
+  <p><em>
+    Left: Noisy Video. Right: Denoised Video
+  </em></p>
+</div> 
 
 ### A different parallelization assignment
 We set out to explore a different work assignment approach from the reference open-source implementation.
@@ -91,16 +99,7 @@ One perceived bane of per-thread allocation is that memory access on warp level 
 ![running time breakdown image here](https://github.com/JeffOwOSun/gpu-bm3d/raw/master/assets/running_time_breakdown.png)
 *The bar chart of running time breakdown. Our implementation strips away unnecessary computation time in transformation. Note the difference in parallelization scheme results in difference in block matching and aggregation time*
 
-## Result
-
-
-
-
-
-
-
-
-
+### Video denoising
 
 # Proposal
 
