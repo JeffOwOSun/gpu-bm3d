@@ -18,7 +18,9 @@ using namespace std;
 void usage(const char* progname) {
     printf("Usage: %s [options] InputFile OutputFile\n", progname);
     printf("Program Options:\n");
-    printf("  -s  --sigma <INT>          Noisy level\n");
+    printf("  -s1  --sigma_1st <FLOAT>          Noisy level for first step (default = 20)\n");
+    printf("  -s2  --sigma_2nd <FLOAT>          Noisy level for second step (default = 20)\n");
+    printf("  -1  --lambda <FLOAT>          Hard Thresholding Level (default = 2.7)\n");
     printf("  -c  --color                Color Image\n");
     printf("  -t  --step  <INT>          Perform which step of denoise, 1: first step, 2: both step\n");
     printf("  -v  --verbose              Print addtional infomation\n");
@@ -30,14 +32,22 @@ int main(int argc, char** argv)
     int opt;
     int channels = 1;
     int step = 2;
-    int verbose = 0;
-    int sigma = 0;
+    bool verbose = 0;
+    float sigma_1st = 20;
+    float sigma_2nd = 20;
+    float lambda = 2.7;
     string input_file, output_file;
 
     while ((opt = getopt(argc, argv, "s:ct:v?")) != EOF) {
         switch (opt) {
-        case 's':
-            sigma = atoi(optarg);
+        case 's1':
+            sigma_1st = atof(optarg);
+            break;
+        case 's2':
+            sigma_2nd = atof(optarg);
+            break;
+        case 'l':
+            lambda = atof(optarg);
             break;
         case 'c':
             // color image
@@ -65,7 +75,10 @@ int main(int argc, char** argv)
     input_file = argv[optind];
     output_file = argv[optind+1];
     if (verbose) {
-        printf("Sigma: %d\n", sigma);
+        printf("Sigma 1st: %d\n", sigma_1st);
+        if (step == 2)
+            printf("Sigma 2nd: %d\n", sigma_2nd);
+        printf("Lambda: %d\n", lambda);
         if (channels == 1) {
             printf("Image: Grayscale\n");
         } else {
@@ -101,7 +114,9 @@ int main(int argc, char** argv)
         //          image2.data(),
         //          image.width(),
         //          image.height(),
-        //          sigma,
+        //          sigma_1st,
+        //          sigma_2nd,
+        //          lambda_3d,
         //          channels,
         //          step,
         //          verbose);

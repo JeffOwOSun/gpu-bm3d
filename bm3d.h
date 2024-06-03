@@ -49,7 +49,7 @@ private:
 
 
     // model parameter
-    Params h_fst_step_params;
+    Params h_1st_step_params;
     Params h_2nd_step_params;
 
     // device parameter
@@ -61,7 +61,7 @@ public:
     Bm3d();
     ~Bm3d();
 
-    void set_fst_step_param();
+    void set_1st_step_param();
 
     void set_2nd_step_param();
 
@@ -75,12 +75,14 @@ public:
                  uchar *dst_image,
                  int width,
                  int height,
-                 int sigma,
+                 float sigma_1st,
+                 float sigma_2nd,
+                 float lambda_3d,
                  int channels,
                  int step,
                  int verbose);
 
-    void denoise_fst_step();
+    void denoise_1st_step();
 
     void denoise_2nd_step();
 
@@ -119,7 +121,8 @@ struct GlobalConstants {
     unsigned int distance_threshold_1;
     unsigned int distance_threshold_2;
     unsigned int stripe;
-    float sigma;
+    float sigma_1st;
+    float sigma_2nd;
     float lambda_3d;
     float beta;
     int total_ref_patches;

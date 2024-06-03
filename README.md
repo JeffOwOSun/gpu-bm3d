@@ -170,6 +170,27 @@ The parallel baseline: [GitHub](https://github.com/DawyD/bm3d-gpu)
 
 **credit** 50-50
 
+## Compile from Source
+```
+mkdir build
+cd build
+ccmake ../
+# (optional) check BUILD_PYTHON_BINDINGS if python interface is needed
+make
+cd ..
+```
+### Python
+Currently we only tested with Python 3.10 under Ubuntu 20.04. You may need to edit [setup.py](setup.py) for other environments.
+
+Python virtual environment control is high recommended. Here we demonstrate the installation from scratch.
+```bash
+# compile .so from source
+cd <root-dir>
+mamba create -n bm3d python=3.10
+mamba activate bm3d
+python setup.py install
+```
+Python example is available at [notebooks](./notebooks/)
 
 ## Reference
 

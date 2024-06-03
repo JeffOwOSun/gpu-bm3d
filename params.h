@@ -14,10 +14,10 @@ struct Params
     unsigned int stripe;                    // Step between reference patches
     unsigned int max_group_size;            // Maximal number of similar blocks in stack (without reference block)
     unsigned int searching_window_size;     // Area where similar blocks are searched
-    unsigned int distance_threshold_1;      // Distance treshold under which two blocks are simialr for step 1
-    unsigned int distance_threshold_2;      // Distance treshold under which two blocks are simialr for step 2
-    float sigma;                            // Expexted noise variance
-    float lambda_3d;                        // Treshold in first step colaborative filtering
+    unsigned int distance_threshold_1;      // Distance threshold under which two blocks are simialr for step 1
+    unsigned int distance_threshold_2;      // Distance threshold under which two blocks are simialr for step 2
+    float sigma;                            // Expected noise variance
+    float lambda_3d;                        // Threshold in first step colaborative filtering
     float beta;                             // Kaiser window parameter that affects the sidelobe attenuation of the transform of the window.
 
     Params(unsigned int searching_window_size= 32,

@@ -61,7 +61,7 @@ __global__ void hard_filter(cufftComplex *d_transformed_stacks, float *d_weight)
     int patch_size = cu_const_params.patch_size;
     int non_zero = 0;
     float threshold = cu_const_params.lambda_3d * cu_const_params.lambda_3d *
-                      cu_const_params.sigma * cu_const_params.sigma * patch_size * patch_size * cu_const_params.max_group_size;
+                      cu_const_params.sigma_1st * cu_const_params.sigma_1st * patch_size * patch_size * cu_const_params.max_group_size;
     // printf("Threshold %f\n", threshold);
     int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
 
@@ -90,7 +90,7 @@ __global__ void get_wiener_coef(cufftComplex *d_transformed_stacks, float *d_wie
         return;
     }
     const int patch_size = cu_const_params.patch_size;
-    const int sigma = cu_const_params.sigma;
+    const int sigma = cu_const_params.sigma_2nd;
     const int norm_fator = patch_size * patch_size * cu_const_params.max_group_size;
     int offset = group_id*cu_const_params.max_group_size * patch_size * patch_size;
 
@@ -173,7 +173,7 @@ Bm3d::~Bm3d() {
 /*
  * Set first step params
  */
-void Bm3d::set_fst_step_param() {
+void Bm3d::set_1st_step_param() {
 
 }
 
@@ -188,20 +188,20 @@ void Bm3d::set_2nd_step_param() {
  * Set device params and allocate device memories
  */
 void Bm3d::set_device_param() {
-    total_patches = (h_width - h_fst_step_params.patch_size + 1) * (h_height - h_fst_step_params.patch_size + 1);
-    total_ref_patches = ((h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1) * ((h_height - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1);
+    total_patches = (h_width - h_1st_step_params.patch_size + 1) * (h_height - h_1st_step_params.patch_size + 1);
+    total_ref_patches = ((h_width - h_1st_step_params.patch_size) / h_1st_step_params.stripe + 1) * ((h_height - h_1st_step_params.patch_size) / h_1st_step_params.stripe + 1);
     // copy original image to cuda
     const uint size = h_width * h_height;
     cudaMalloc(&d_noisy_image, sizeof(uchar) * h_channels * size);
 
-    cudaMalloc(&d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
+    cudaMalloc(&d_stacks, sizeof(Q) * total_ref_patches * h_1st_step_params.max_group_size);
     cudaMalloc(&d_num_patches_in_stack, sizeof(uint) * total_ref_patches);
-    cudaMalloc(&d_transformed_stacks, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+    cudaMalloc(&d_transformed_stacks, sizeof(cufftComplex) * h_1st_step_params.patch_size * h_1st_step_params.patch_size * h_1st_step_params.max_group_size * total_ref_patches);
 
     cudaMalloc(&d_numerator, sizeof(float) * size);
     cudaMalloc(&d_denominator, sizeof(float) * size);
     cudaMalloc(&d_weight, sizeof(float) * total_ref_patches);
-    cudaMalloc(&d_wien_coef, sizeof(float) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+    cudaMalloc(&d_wien_coef, sizeof(float) * h_1st_step_params.patch_size * h_1st_step_params.patch_size * h_1st_step_params.max_group_size * total_ref_patches);
     cudaMalloc(&d_wien_weight, sizeof(float) * total_ref_patches);
 
     cudaMalloc(&d_denoised_image, sizeof(uchar) * size);
@@ -212,20 +212,21 @@ void Bm3d::set_device_param() {
     params.image_height = h_height;
     params.image_channels = h_channels;
 
-    params.patch_size = h_fst_step_params.patch_size;
-    params.searching_window_size = h_fst_step_params.searching_window_size;
-    params.stripe = h_fst_step_params.stripe;
-    params.max_group_size = h_fst_step_params.max_group_size;
-    params.distance_threshold_1 = h_fst_step_params.distance_threshold_1;
-    params.distance_threshold_2 = h_fst_step_params.distance_threshold_2;
-    params.sigma = h_fst_step_params.sigma;
-    params.lambda_3d = h_fst_step_params.lambda_3d;
-    params.beta = h_fst_step_params.beta;
+    params.patch_size = h_1st_step_params.patch_size;
+    params.searching_window_size = h_1st_step_params.searching_window_size;
+    params.stripe = h_1st_step_params.stripe;
+    params.max_group_size = h_1st_step_params.max_group_size;
+    params.distance_threshold_1 = h_1st_step_params.distance_threshold_1;
+    params.distance_threshold_2 = h_1st_step_params.distance_threshold_2;
+    params.sigma_1st = h_1st_step_params.sigma;
+    params.sigma_2nd = h_2nd_step_params.sigma;
+    params.lambda_3d = h_1st_step_params.lambda_3d;
+    params.beta = h_1st_step_params.beta;
     params.total_ref_patches = total_ref_patches;
 
     cudaMemcpyToSymbol(cu_const_params, &params, sizeof(GlobalConstants));
-    int dim3D[3] = {h_fst_step_params.patch_size, h_fst_step_params.patch_size, h_fst_step_params.max_group_size};
-    int size_3d = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size;
+    int dim3D[3] = {h_1st_step_params.patch_size, h_1st_step_params.patch_size, h_1st_step_params.max_group_size};
+    int size_3d = h_1st_step_params.patch_size * h_1st_step_params.patch_size * h_1st_step_params.max_group_size;
     if(cufftPlanMany(&plan3D, 3, dim3D,
                      NULL, 1, size_3d,
                      NULL, 1, size_3d,
@@ -253,18 +254,19 @@ void Bm3d::clean_up_buffer() {
     // clean up buffer
     cudaMemset(d_numerator, 0, sizeof(float)*h_width*h_height);
     cudaMemset(d_denominator, 0, sizeof(float)*h_width*h_height);
-    // cudaMemset(d_stacks, 0, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
+    // cudaMemset(d_stacks, 0, sizeof(Q) * total_ref_patches * h_1st_step_params.max_group_size);
     // cudaMemset(d_num_patches_in_stack, 0, sizeof(uint) * total_ref_patches);
-    cudaMemset(d_transformed_stacks, 0, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+    cudaMemset(d_transformed_stacks, 0, sizeof(cufftComplex) * h_1st_step_params.patch_size * h_1st_step_params.patch_size * h_1st_step_params.max_group_size * total_ref_patches);
     
     cudaMemset(d_weight, 0, sizeof(float) * total_ref_patches);
-    cudaMemset(d_wien_coef, 0, sizeof(float) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+    cudaMemset(d_wien_coef, 0, sizeof(float) * h_1st_step_params.patch_size * h_1st_step_params.patch_size * h_1st_step_params.max_group_size * total_ref_patches);
     cudaMemset(d_wien_weight, 0, sizeof(float) * total_ref_patches);
 
     cudaMemset(d_denoised_image, 0, sizeof(uchar) * h_width*h_height);
 }
 
 void Bm3d::set_up_realtime(int width, int height, int channels) {
+    // TODO: Add option for external sigma, lambda and step change
     h_width = width;
     h_height = height;
     h_channels = channels;
@@ -279,8 +281,8 @@ void Bm3d::realtime_denoise(uchar *src_image,
                             ) {
     copy_image_to_device(src_image);
     clean_up_buffer();
-    denoise_fst_step();
-    cudaMemset(d_transformed_stacks, 0, sizeof(cufftComplex) * h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches);
+    denoise_1st_step();
+    cudaMemset(d_transformed_stacks, 0, sizeof(cufftComplex) * h_1st_step_params.patch_size * h_1st_step_params.patch_size * h_1st_step_params.max_group_size * total_ref_patches);
     denoise_2nd_step();
     cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * h_width * h_height, cudaMemcpyDeviceToHost);
 }
@@ -292,17 +294,22 @@ void Bm3d::denoise(uchar *src_image,
                    uchar *dst_image,
                    int width,
                    int height,
-                   int sigma,
+                   float sigma_1st,
+                   float sigma_2nd,
+                   float lambda_3d,
                    int channels,
-                   int step,
+                   int step = 2,
                    int verbose = 1) {
     Stopwatch init_time;
     Stopwatch first_step;
-    Stopwatch sed_step;
+    Stopwatch sec_step;
 
     h_width = width;
     h_height = height;
     h_channels = channels;
+    h_1st_step_params.sigma = sigma_1st;
+    h_2nd_step_params.sigma = sigma_2nd;
+    h_1st_step_params.lambda_3d = lambda_3d;
 
     init_time.start();
     set_device_param();
@@ -311,21 +318,23 @@ void Bm3d::denoise(uchar *src_image,
     copy_image_to_device(src_image);
 
     first_step.start();
-    denoise_fst_step();
+    denoise_1st_step();
     first_step.stop();
 
-
-    sed_step.start();
     if (step == 2) {
+        sec_step.start();
         denoise_2nd_step();
+        sec_step.stop();
     }
-    sed_step.stop();
-
+    
     // copy image from device to host
-    printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
-    printf("Init takes %f\n", init_time.getSeconds());
-    printf("First step takes %f\n", first_step.getSeconds());
-    printf("Second step takes %f\n", sed_step.getSeconds());
+    if (verbose){
+        printf("<<<<<<<<<<<<<<<<<<<< GPU BM3D Perf <<<<<<<<<<<<<<<<<<<<\n");
+        printf("Init takes %f\n", init_time.getSeconds());
+        printf("First step takes %f\n", first_step.getSeconds());
+        if (step == 2)
+            printf("Second step takes %f\n", sec_step.getSeconds());
+    }
 
     const uint num_pixels = h_width * h_height;
     cudaMemcpy(dst_image, d_denoised_image, sizeof(uchar) * num_pixels, cudaMemcpyDeviceToHost);
@@ -334,9 +343,9 @@ void Bm3d::denoise(uchar *src_image,
 /*
  * Perform the first step denoise
  */
-void Bm3d::denoise_fst_step() {
+void Bm3d::denoise_1st_step() {
     //Block matching, each thread maps to a ref patch
-    do_block_matching(d_noisy_image, h_fst_step_params.distance_threshold_1);
+    do_block_matching(d_noisy_image, h_1st_step_params.distance_threshold_1);
 
     //gather patches
     arrange_block(d_noisy_image);
@@ -366,7 +375,7 @@ void Bm3d::denoise_fst_step() {
  */
 void Bm3d::denoise_2nd_step() {
     //Block matching estimate image, each thread maps to a ref patch
-    do_block_matching(d_denoised_image, h_fst_step_params.distance_threshold_2);
+    do_block_matching(d_denoised_image, h_1st_step_params.distance_threshold_2);
     //gather patches for estimate image
     arrange_block(d_denoised_image);
     // perform 3d transform for estimate groups
@@ -433,7 +442,7 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     printf("width, height: %d %d\n", width, height);
 
     // determine how many threads we need to spawn
-    const int num_ref_patches_x = (h_width - h_fst_step_params.patch_size) / h_fst_step_params.stripe + 1;
+    const int num_ref_patches_x = (h_width - h_1st_step_params.patch_size) / h_1st_step_params.stripe + 1;
 
     // printf("total_ref_patches %d\n", total_ref_patches);
     // const int total_num_threads = total_ref_patches;
@@ -449,10 +458,10 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     // // call our block matching magic
     // block_matching<<<num_blocks, threads_per_block>>>(d_stacks, d_num_patches_in_stack);
 
-    do_block_matching(input_image, h_fst_step_params.distance_threshold_1);
+    do_block_matching(input_image, h_1st_step_params.distance_threshold_1);
 
-    Q *h_stacks = (Q *)malloc(sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size);
-    cudaMemcpy(h_stacks, d_stacks, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyDeviceToHost);
+    Q *h_stacks = (Q *)malloc(sizeof(Q) * total_ref_patches * h_1st_step_params.max_group_size);
+    cudaMemcpy(h_stacks, d_stacks, sizeof(Q) * total_ref_patches * h_1st_step_params.max_group_size, cudaMemcpyDeviceToHost);
     uint *h_num_patches_in_stack = (uint *)malloc(sizeof(uint) * total_ref_patches);
     cudaMemcpy(h_num_patches_in_stack, d_num_patches_in_stack, sizeof(uint) * total_ref_patches, cudaMemcpyDeviceToHost);
 
@@ -461,7 +470,7 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     const int stack_x = which_stack % num_ref_patches_x;
     const int stack_y = which_stack / num_ref_patches_x;
 
-    h_stacks = &h_stacks[which_stack * h_fst_step_params.max_group_size];
+    h_stacks = &h_stacks[which_stack * h_1st_step_params.max_group_size];
 
 
 
@@ -470,8 +479,8 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
         const uint start_x = h_stacks[i].position.x;
         const uint start_y = h_stacks[i].position.y;
         printf("distance %d, x %d y %d\n", h_stacks[i].distance, start_x, start_y);
-        for (int y = 0; y < h_fst_step_params.patch_size; ++y) {
-            for (int x = 0; x < h_fst_step_params.patch_size; ++x) {
+        for (int y = 0; y < h_1st_step_params.patch_size; ++y) {
+            for (int x = 0; x < h_1st_step_params.patch_size; ++x) {
                 const int idx = idx2( start_x + x, start_y + y, width);
                 input_image[idx] = 255;
             }
@@ -479,11 +488,11 @@ void Bm3d::test_block_matching(uchar *input_image, int width, int height) {
     }
 
     // set the original ref patch to 0
-    for (int y = 0; y < h_fst_step_params.patch_size; ++y) {
-        for (int x = 0; x < h_fst_step_params.patch_size; ++x) {
+    for (int y = 0; y < h_1st_step_params.patch_size; ++y) {
+        for (int x = 0; x < h_1st_step_params.patch_size; ++x) {
             const int idx = idx2(
-                stack_x * h_fst_step_params.stripe + x,
-                stack_y * h_fst_step_params.stripe + y,
+                stack_x * h_1st_step_params.stripe + x,
+                stack_y * h_1st_step_params.stripe + y,
                 width);
             input_image[idx] = 0;
         }
@@ -533,20 +542,20 @@ void Bm3d::arrange_block(uchar* input_data) {
 }
 
 void Bm3d::test_arrange_block(uchar *input_data) {
-    int size = h_fst_step_params.patch_size * h_fst_step_params.patch_size * h_fst_step_params.max_group_size * total_ref_patches;
+    int size = h_1st_step_params.patch_size * h_1st_step_params.patch_size * h_1st_step_params.max_group_size * total_ref_patches;
 
-    Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_fst_step_params.max_group_size);
-    for (int i=0;i<2*h_fst_step_params.max_group_size; i++) {
+    Q* test_q = (Q*)malloc(sizeof(Q)*total_ref_patches * h_1st_step_params.max_group_size);
+    for (int i=0;i<2*h_1st_step_params.max_group_size; i++) {
         test_q[i].position.x = i;
         test_q[i].position.y = 0;
     }
     float* h_data = (float*)malloc(sizeof(float) * size);
     float* d_data;
     cudaMalloc(&d_data, sizeof(float) * size);
-    cudaMemcpy(d_stacks, test_q, sizeof(Q) * total_ref_patches * h_fst_step_params.max_group_size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_stacks, test_q, sizeof(Q) * total_ref_patches * h_1st_step_params.max_group_size, cudaMemcpyHostToDevice);
     uint* h_num_patches = (uint*)calloc(total_ref_patches, sizeof(uint));
-    h_num_patches[0] = h_fst_step_params.max_group_size;
-    h_num_patches[1] = h_fst_step_params.max_group_size - 2;
+    h_num_patches[0] = h_1st_step_params.max_group_size;
+    h_num_patches[1] = h_1st_step_params.max_group_size - 2;
     cudaMemcpy(d_num_patches_in_stack, h_num_patches, sizeof(uint)*total_ref_patches, cudaMemcpyHostToDevice);
     arrange_block(d_noisy_image);
 
@@ -561,21 +570,21 @@ void Bm3d::test_arrange_block(uchar *input_data) {
     }
     int threads_per_block = 512;
     int num_blocks = (size + threads_per_block - 1) / threads_per_block;
-    complex2real<<<num_blocks, threads_per_block>>>(d_transformed_stacks, d_data, size, h_fst_step_params.patch_size*h_fst_step_params.patch_size);
+    complex2real<<<num_blocks, threads_per_block>>>(d_transformed_stacks, d_data, size, h_1st_step_params.patch_size*h_1st_step_params.patch_size);
 
     cudaMemcpy(h_data, d_data, size * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaGetLastError() != cudaSuccess) {
         fprintf(stderr, "Cuda error: Failed results copy\n");
         return;
     }
-    for (int i=0;i<2*h_fst_step_params.patch_size*h_fst_step_params.patch_size*h_fst_step_params.max_group_size;i++) {
-        int x = i/(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
+    for (int i=0;i<2*h_1st_step_params.patch_size*h_1st_step_params.patch_size*h_1st_step_params.max_group_size;i++) {
+        int x = i/(h_1st_step_params.patch_size*h_1st_step_params.patch_size);
         int y = 0;
-        if (i % (h_fst_step_params.patch_size*h_fst_step_params.patch_size) == 0) {
+        if (i % (h_1st_step_params.patch_size*h_1st_step_params.patch_size) == 0) {
             printf("Patch (%d, %d)\n", x, 0);
         }
-        int z = i - x*(h_fst_step_params.patch_size*h_fst_step_params.patch_size);
-        int index = idx2(x+(z%h_fst_step_params.patch_size), y+(z/h_fst_step_params.patch_size), h_width);
+        int z = i - x*(h_1st_step_params.patch_size*h_1st_step_params.patch_size);
+        int index = idx2(x+(z%h_1st_step_params.patch_size), y+(z/h_1st_step_params.patch_size), h_width);
         printf("Transform: %.3f vs Original: %d\n",
             h_data[i],
             input_data[index]
@@ -597,7 +606,7 @@ void Bm3d::test_aggregation(
     copy_image_to_device(src_image);
 
     // step 0: block matching
-    do_block_matching(src_image, h_fst_step_params.distance_threshold_1);
+    do_block_matching(src_image, h_1st_step_params.distance_threshold_1);
 
     // step 1: arrange the data into stacks of pixels
     arrange_block(d_noisy_image);

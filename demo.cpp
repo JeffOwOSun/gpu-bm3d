@@ -82,7 +82,11 @@ int main( int argc, char** argv )
         if (frame.empty()) {
             break;
         }
-        cvtColor(frame, gray, CV_BGR2GRAY);
+        #if CV_VERSION_MAJOR == 4
+            cvtColor(frame, gray, cv::COLOR_BGR2RGB);
+        #else
+            cvtColor(frame, gray, CV_BGR2GRAY);
+        #endif
         int width = gray.size().width;
         int height = gray.size().height;
         int channels = 1;
